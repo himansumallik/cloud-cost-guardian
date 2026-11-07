@@ -1,0 +1,16 @@
+---
+- name: Create /opt/cloud-cost-guardian directory
+  file:
+    path: /opt/cloud-cost-guardian
+    state: directory
+    mode: '0755'
+
+- name: Copy docker-compose.yml to EC2 host
+  copy:
+    src: ../../../../docker-compose.yml
+    dest: /opt/cloud-cost-guardian/docker-compose.yml
+
+- name: Pull GHCR images and launch Docker Compose stack
+  command: docker compose up -d
+  args:
+    chdir: /opt/cloud-cost-guardian

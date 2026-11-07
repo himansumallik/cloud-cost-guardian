@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ccg-api
+  namespace: cloud-cost-guardian
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ccg-api
+  template:
+    metadata:
+      labels:
+        app: ccg-api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/cloud-cost-guardian/api:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: ccg-config
+            - secretRef:
+                name: ccg-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ccg-api-svc
+  namespace: cloud-cost-guardian
+spec:
+  selector:
+    app: ccg-api
+  ports:
+    - port: 3000
+      targetPort: 3000

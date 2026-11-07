@@ -1,0 +1,56 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ccg-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ccg_user
+      POSTGRES_PASSWORD: ccg_password
+      POSTGRES_DB: cloud_cost_guardian
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./apps/api/src/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ccg_user -d cloud_cost_guardian"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: ccg-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      NODE_ENV: development
+      DATABASE_URL: postgresql://ccg_user:ccg_password@postgres:5432/cloud_cost_guardian
+      AWS_REGION: ap-south-1
+      DEMO_MODE: "true"
+      DRY_RUN_DEFAULT: "true"
+      IDLE_CPU_THRESHOLD: "5.0"
+      LOOKBACK_DAYS: "14"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: ccg-web
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

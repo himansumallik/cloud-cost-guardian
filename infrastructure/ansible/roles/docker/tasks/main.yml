@@ -1,0 +1,20 @@
+---
+- name: Install Docker Engine and Docker Compose v2 plugin
+  apt:
+    name:
+      - docker.io
+      - docker-compose-v2
+    state: present
+    update_cache: true
+
+- name: Ensure Docker daemon is running and enabled
+  service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Add ubuntu user to docker group
+  user:
+    name: ubuntu
+    groups: docker
+    append: yes

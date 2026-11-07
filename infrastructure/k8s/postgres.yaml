@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ccg-postgres
+  namespace: cloud-cost-guardian
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ccg-postgres
+  template:
+    metadata:
+      labels:
+        app: ccg-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: ccg-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ccg-postgres
+  namespace: cloud-cost-guardian
+spec:
+  selector:
+    app: ccg-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

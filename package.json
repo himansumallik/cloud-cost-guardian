@@ -1,0 +1,20 @@
+{
+  "name": "cloud-cost-guardian",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Approval-Gated AWS Cost Optimization & FinOps Platform (PERN + DevOps)",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "install:all": "npm --prefix apps/api install && npm --prefix apps/web install",
+    "dev:api": "npm --prefix apps/api run dev",
+    "dev:web": "npm --prefix apps/web run dev",
+    "build": "npm --prefix apps/api run build && npm --prefix apps/web run build",
+    "test": "npm --prefix apps/api test",
+    "lint": "npm --prefix apps/api run lint"
+  },
+  "author": "Himansu Mallik (RA2311003012367), Aarnov Adhikari (RA2311003012365), Utsav Gautam (RA2311003012366)",
+  "license": "MIT"
+}

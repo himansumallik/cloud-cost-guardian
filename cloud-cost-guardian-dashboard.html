@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cloud Cost Guardian (CCG) — Approval-Gated AWS Cost Optimization</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+  <!-- Toast Notification Banner -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-md"></div>
+
+  <!-- Top Navigation & Control Bar -->
+  <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-lg">
+          CCG
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base sm:text-lg font-bold tracking-tight text-white">Cloud Cost Guardian</h1>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-medium">v1.0 • PERN + DevOps</span>
+          </div>
+          <p class="text-xs text-slate-400">Approval-Gated AWS FinOps &amp; Remediation Engine</p>
+        </div>
+      </div>
+
+      <!-- Interactive Demo Controls -->
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+        <!-- Active Reviewer / Team Member Selector -->
+        <div class="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs">
+          <span class="text-slate-400">Operator:</span>
+          <select id="actor-select" class="bg-transparent text-slate-100 font-medium focus:outline-none">
+            <option value="Himansu Mallik (RA2311003012367)">Himansu Mallik (RA2311003012367)</option>
+            <option value="Aarnov Adhikari (RA2311003012365)">Aarnov Adhikari (RA2311003012365)</option>
+            <option value="Utsav Gautam (RA2311003012366)">Utsav Gautam (RA2311003012366)</option>
+          </select>
+        </div>
+
+        <!-- AWS Region Selector -->
+        <div class="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs">
+          <span class="text-slate-400">Region:</span>
+          <select id="region-select" class="bg-transparent text-emerald-400 font-mono focus:outline-none">
+            <option value="ap-south-1">ap-south-1 (Mumbai)</option>
+            <option value="us-east-1">us-east-1 (N. Virginia)</option>
+          </select>
+        </div>
+
+        <!-- Dry-Run Mode Toggle -->
+        <button id="dry-run-toggle" type="button" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition bg-amber-500/15 border-amber-500/40 text-amber-300">
+          <span id="dry-run-dot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+          <span id="dry-run-label">Dry-Run Mode: ON</span>
+        </button>
+
+        <!-- Inject Terraform Waste Button -->
+        <button id="btn-spawn-waste" type="button" class="px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 text-xs font-semibold transition">
+          + Apply Terraform Waste
+        </button>
+
+        <!-- Run AWS Scan Button -->
+        <button id="btn-run-scan" type="button" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-950 text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-950/50">
+          <span id="scan-btn-text">Run AWS Scan</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 flex flex-wrap gap-1 border-t border-slate-800/80 pt-1">
+      <button type="button" data-tab="recommendations" class="tab-btn px-4 py-2 text-xs sm:text-sm font-semibold border-b-2 border-emerald-400 text-emerald-400 transition">
+        1. Approval &amp; Remediation Queue
+      </button>
+      <button type="button" data-tab="inventory" class="tab-btn px-4 py-2 text-xs sm:text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition">
+        2. Resource Inventory &amp; CloudWatch
+      </button>
+      <button type="button" data-tab="audit" class="tab-btn px-4 py-2 text-xs sm:text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition">
+        3. Immutable Audit Log
+      </button>
+      <button type="button" data-tab="devops" class="tab-btn px-4 py-2 text-xs sm:text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition">
+        4. DevOps &amp; IaC Code Viewer
+      </button>
+      <button type="button" data-tab="guide" class="tab-btn px-4 py-2 text-xs sm:text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition">
+        5. Mentor Demo &amp; Viva Guide
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Workspace Container -->
+  <main class="max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 flex-1 space-y-6">
+
+    <!-- KPI Scorecard Row -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>Discovered AWS Resources</span>
+          <span class="font-mono text-emerald-400" id="kpi-region-badge">ap-south-1</span>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="kpi-resource-count" class="text-2xl font-bold text-white">6</span>
+          <span id="kpi-monthly-spend" class="text-xs font-mono text-slate-300">Spend: $149.38/mo</span>
+        </div>
+        <p class="mt-1 text-xs text-slate-400">EC2, EBS, S3 &amp; IAM enumerated via SDK v3</p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>Detected Monthly Waste</span>
+          <span class="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 font-medium">Static Price Table</span>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="kpi-potential-savings" class="text-2xl font-bold text-amber-400">$120.75/mo</span>
+          <span id="kpi-annual-savings" class="text-xs font-mono text-slate-400">$1,449.00/yr</span>
+        </div>
+        <p class="mt-1 text-xs text-slate-400">Idle EC2 (&lt;<span id="kpi-cpu-threshold">5.0</span>% CPU) &amp; Unattached EBS</p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>Realized Monthly Savings</span>
+          <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-medium">Remediated</span>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="kpi-realized-savings" class="text-2xl font-bold text-emerald-400">$0.00/mo</span>
+          <span id="kpi-completed-count" class="text-xs font-mono text-slate-300">0 actions completed</span>
+        </div>
+        <p class="mt-1 text-xs text-slate-400">Gated by Human Approval + EBS Snapshot</p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>Sandbox AWS Budget Alarm</span>
+          <span class="font-mono text-emerald-400">OK (&lt;80%)</span>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span class="text-2xl font-bold text-white">$1.42 <span class="text-sm font-normal text-slate-400">/ $5.00</span></span>
+          <span class="text-xs font-mono text-slate-400">28.4% used</span>
+        </div>
+        <div class="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+          <div class="bg-emerald-500 h-full rounded-full" style="width: 28.4%"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 1: APPROVAL & REMEDIATION QUEUE -->
+    <section id="tab-recommendations" class="tab-panel space-y-5">
+      <!-- State Machine Banner -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 class="text-sm font-semibold text-white">Remediation Approval State Machine (ADR-03)</h2>
+            <p class="text-xs text-slate-400 mt-0.5">No destructive AWS SDK action can execute unless a recommendation transitions from <span class="font-mono text-amber-300">PROPOSED</span> to <span class="font-mono text-sky-300">APPROVED</span>.</p>
+          </div>
+          <!-- CPU Threshold Slider -->
+          <div class="flex items-center gap-3 bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg">
+            <label for="cpu-threshold-slider" class="text-xs text-slate-300 font-medium">Idle EC2 CPU Threshold:</label>
+            <input id="cpu-threshold-slider" type="range" min="1" max="15" step="0.5" value="5" class="accent-emerald-500 w-28" />
+            <span id="cpu-threshold-display" class="text-xs font-mono font-bold text-emerald-400">5.0%</span>
+          </div>
+        </div>
+
+        <!-- Visual Pipeline Badges -->
+        <div class="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
+          <div class="bg-slate-950 border border-amber-500/30 rounded-lg p-2">
+            <div class="font-mono text-amber-300 font-bold" id="state-count-proposed">3</div>
+            <div class="text-slate-400">1. PROPOSED</div>
+          </div>
+          <div class="bg-slate-950 border border-sky-500/30 rounded-lg p-2">
+            <div class="font-mono text-sky-300 font-bold" id="state-count-approved">1</div>
+            <div class="text-slate-400">2. APPROVED</div>
+          </div>
+          <div class="bg-slate-950 border border-purple-500/30 rounded-lg p-2">
+            <div class="font-mono text-purple-300 font-bold" id="state-count-executing">0</div>
+            <div class="text-slate-400">3. EXECUTING (Lock)</div>
+          </div>
+          <div class="bg-slate-950 border border-emerald-500/30 rounded-lg p-2">
+            <div class="font-mono text-emerald-300 font-bold" id="state-count-completed">0</div>
+            <div class="text-slate-400">4. COMPLETED</div>
+          </div>
+          <div class="bg-slate-950 border border-rose-500/30 rounded-lg p-2 col-span-2 sm:col-span-1">
+            <div class="font-mono text-rose-300 font-bold" id="state-count-rejected">0</div>
+            <div class="text-slate-400">REJECTED</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status Filter Pills -->
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap gap-1.5" id="rec-filter-group">
+          <button type="button" data-status-filter="ALL" class="rec-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 text-slate-950">All Recommendations</button>
+          <button type="button" data-status-filter="PROPOSED" class="rec-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 border border-slate-800">Proposed</button>
+          <button type="button" data-status-filter="APPROVED" class="rec-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 border border-slate-800">Approved (Ready)</button>
+          <button type="button" data-status-filter="COMPLETED" class="rec-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 border border-slate-800">Completed</button>
+          <button type="button" data-status-filter="REJECTED" class="rec-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 border border-slate-800">Rejected</button>
+        </div>
+        <button id="btn-approve-all" type="button" class="text-xs px-3 py-1.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 font-semibold transition">
+          Approve All Proposed
+        </button>
+      </div>
+
+      <!-- Recommendations List -->
+      <div id="recommendations-list" class="space-y-3"></div>
+    </section>
+
+    <!-- TAB 2: RESOURCE INVENTORY & CLOUDWATCH METRICS -->
+    <section id="tab-inventory" class="tab-panel hidden space-y-5">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <!-- Left 2 Columns: Resource Inventory Table -->
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <div>
+              <h2 class="text-sm font-semibold text-white">Discovered AWS Resource Inventory</h2>
+              <p class="text-xs text-slate-400">Click any EC2 instance row to inspect its 14-day CloudWatch CPU &amp; Network metrics.</p>
+            </div>
+            <input id="resource-search" type="text" placeholder="Filter by name, ID, or type..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500" />
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="border-b border-slate-800 text-slate-400">
+                  <th class="py-2.5 px-2">Resource Name &amp; ID</th>
+                  <th class="py-2.5 px-2">Type / Class</th>
+                  <th class="py-2.5 px-2">State</th>
+                  <th class="py-2.5 px-2 text-right">14d Avg CPU</th>
+                  <th class="py-2.5 px-2 text-right">Est. Cost</th>
+                </tr>
+              </thead>
+              <tbody id="inventory-tbody" class="divide-y divide-slate-800/60"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Right Column: CloudWatch Time-Series Chart -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono uppercase tracking-wider text-emerald-400">AWS CloudWatch Metrics</span>
+              <span id="cw-selected-id" class="text-xs font-mono text-slate-400">i-08f92b4c1a701e923</span>
+            </div>
+            <h3 id="cw-selected-name" class="text-base font-bold text-white mt-1">ccg-waste-idle-worker-01</h3>
+            <p id="cw-selected-subtitle" class="text-xs text-slate-400 mt-0.5">14-Day Daily Average CPUUtilization (%) vs. 5.0% Idle Threshold</p>
+            <div class="relative h-64 mt-4">
+              <canvas id="cloudwatch-chart"></canvas>
+            </div>
+          </div>
+          <div id="cw-metadata-box" class="mt-4 bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs space-y-1"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: IMMUTABLE AUDIT LOG -->
+    <section id="tab-audit" class="tab-panel hidden space-y-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 class="text-sm font-semibold text-white">Immutable FinOps Audit Trail (<span class="font-mono text-emerald-400">audit_logs</span>)</h2>
+            <p class="text-xs text-slate-400">Records every discovery scan, state transition, operator identity, dry-run flag, and EBS rollback snapshot ID.</p>
+          </div>
+          <button id="btn-export-audit" type="button" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition">
+            Download Audit CSV
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400">
+                <th class="py-2.5 px-2">Timestamp</th>
+                <th class="py-2.5 px-2">Action</th>
+                <th class="py-2.5 px-2">AWS Resource ID</th>
+                <th class="py-2.5 px-2">State Transition</th>
+                <th class="py-2.5 px-2">Mode</th>
+                <th class="py-2.5 px-2">Operator</th>
+                <th class="py-2.5 px-2">Details &amp; Rollback Metadata</th>
+              </tr>
+            </thead>
+            <tbody id="audit-tbody" class="divide-y divide-slate-800/60"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: DEVOPS & IAC CODE VIEWER -->
+    <section id="tab-devops" class="tab-panel hidden space-y-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 class="text-sm font-semibold text-white">Infrastructure as Code &amp; DevOps Pipeline Artifacts</h2>
+            <p class="text-xs text-slate-400">Inspect the exact Terraform, Ansible, Jenkins, Kubernetes, and PostgreSQL files bundled in your project repo.</p>
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            <button type="button" data-code-file="terraform" class="code-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 text-slate-950">Terraform (waste.tf &amp; budget)</button>
+            <button type="button" data-code-file="jenkins" class="code-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-950 text-slate-300 border border-slate-800">Jenkinsfile (GHCR + Trivy)</button>
+            <button type="button" data-code-file="ansible" class="code-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-950 text-slate-300 border border-slate-800">Ansible (aws_ec2 &amp; deploy)</button>
+            <button type="button" data-code-file="k8s" class="code-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-950 text-slate-300 border border-slate-800">Kubernetes (kind manifests)</button>
+            <button type="button" data-code-file="sql" class="code-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-950 text-slate-300 border border-slate-800">PostgreSQL Schema</button>
+          </div>
+        </div>
+        <div class="relative">
+          <button id="btn-copy-code" type="button" class="absolute top-3 right-3 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 font-mono">
+            Copy Snippet
+          </button>
+          <pre id="code-viewer-content" class="bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs font-mono text-emerald-300 overflow-x-auto leading-relaxed max-h-[460px]"></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: MENTOR DEMO & VIVA GUIDE -->
+    <section id="tab-guide" class="tab-panel hidden space-y-5">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+          <h2 class="text-base font-bold text-emerald-400">3-Minute Live Mentor Demo Flow</h2>
+          <ol class="list-decimal list-inside space-y-2.5 text-xs text-slate-300 leading-relaxed">
+            <li><strong class="text-white">Introduce the Problem &amp; Team:</strong> Show the header with team members Himansu Mallik (<span class="font-mono">RA2311003012367</span>), Aarnov Adhikari (<span class="font-mono">RA2311003012365</span>), and Utsav Gautam (<span class="font-mono">RA2311003012366</span>). Explain how Cloud Cost Guardian prevents accidental cloud deletions via an <strong class="text-emerald-300">Approval State Machine</strong> and <strong class="text-amber-300">Dry-Run Mode</strong>.</li>
+            <li><strong class="text-white">Simulate Terraform Waste Creation:</strong> Click <strong class="text-indigo-300">+ Apply Terraform Waste</strong> in the top bar. Show how an intentional idle EC2 instance and unattached EBS volume appear in the queue.</li>
+            <li><strong class="text-white">Show CloudWatch CPU Analysis:</strong> Switch to Tab 2 (<strong class="text-white">Resource Inventory &amp; CloudWatch</strong>) and click different EC2 rows to display their 14-day CPU utilization curve against the 5% idle threshold.</li>
+            <li><strong class="text-white">Approve &amp; Execute Remediation:</strong> Switch to Tab 1, click <strong class="text-sky-300">Approve</strong> on an item, then click <strong class="text-emerald-300">Execute Remediation</strong>. Toggle <strong class="text-amber-300">Dry-Run Mode OFF</strong> and execute another item to show how Live Mode stops the EC2 or snapshots &amp; deletes the EBS volume.</li>
+            <li><strong class="text-white">Prove Governance &amp; DevOps:</strong> Open Tab 3 (<strong class="text-white">Immutable Audit Log</strong>) to show the recorded operator, state transition, and rollback snapshot ID, then open Tab 4 to show the Terraform, Ansible, Jenkins, and Kubernetes code.</li>
+          </ol>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+          <h2 class="text-base font-bold text-sky-400">Top Viva / Review Questions &amp; Answers</h2>
+          <div class="space-y-3 text-xs">
+            <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
+              <div class="font-semibold text-white">Q1: How do you stay within the $25 student budget?</div>
+              <p class="text-slate-400 mt-1">We use GitHub Container Registry (GHCR) instead of paid ECR, run Jenkins and Kubernetes (<span class="font-mono">kind</span>) locally on laptop RAM, use a static regional price table instead of paying $0.01/call for AWS Cost Explorer API, and enforce a $5 AWS Budget alarm + <span class="font-mono">terraform destroy</span> after every demo session.</p>
+            </div>
+            <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
+              <div class="font-semibold text-white">Q2: What happens if two engineers click "Execute" at the same time?</div>
+              <p class="text-slate-400 mt-1">The PostgreSQL state machine uses an atomic conditional update (<span class="font-mono">UPDATE recommendations SET status='EXECUTING' WHERE id=$1 AND status='APPROVED'</span>). Only the first request acquires the lock; the second receives a conflict error.</p>
+            </div>
+            <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
+              <div class="font-semibold text-white">Q3: What if an unattached EBS volume actually had needed data?</div>
+              <p class="text-slate-400 mt-1">Before calling <span class="font-mono">ec2:DeleteVolume</span>, our Remediation Executor calls <span class="font-mono">ec2:CreateSnapshot</span> and logs the <span class="font-mono">rollback_snapshot_id</span> in <span class="font-mono">audit_logs</span> so the volume can be restored in one click.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // --- APPLICATION STATE ---
+    const state = {
+      dryRun: true,
+      region: 'ap-south-1',
+      actor: 'Himansu Mallik (RA2311003012367)',
+      cpuThreshold: 5.0,
+      statusFilter: 'ALL',
+      activeTab: 'recommendations',
+      selectedResourceId: 'res-1',
+      wasteCounter: 1,
+      resources: [
+        {
+          id: 'res-1',
+          awsResourceId: 'i-08f92b4c1a701e923',
+          name: 'ccg-waste-idle-worker-01',
+          resourceType: 'EC2_INSTANCE',
+          region: 'ap-south-1',
+          state: 'running',
+          instanceTypeOrClass: 't3.medium',
+          monthlyCostUsd: 34.02,
+          avgCpuPercent: 1.8,
+          cpuSeries: [2.1, 1.9, 1.5, 2.0, 1.7, 1.6, 1.8, 2.2, 1.4, 1.9, 1.7, 1.8, 1.6, 1.9],
+          metadata: { vpcId: 'vpc-0ccg771', publicIp: '13.232.104.88', launchDaysAgo: 18, managedBy: 'Terraform (waste.tf)' }
+        },
+        {
+          id: 'res-2',
+          awsResourceId: 'vol-0a91f3b2e8c441021',
+          name: 'ccg-unattached-jenkins-cache',
+          resourceType: 'EBS_VOLUME',
+          region: 'ap-south-1',
+          state: 'available',
+          instanceTypeOrClass: 'gp3 (100 GB)',
+          monthlyCostUsd: 8.00,
+          avgCpuPercent: null,
+          cpuSeries: [],
+          metadata: { sizeGb: 100, encrypted: true, daysUnattached: 24, managedBy: 'Terraform (waste.tf)' }
+        },
+        {
+          id: 'res-3',
+          awsResourceId: 'i-04d18e3a9f612c110',
+          name: 'staging-analytics-node',
+          resourceType: 'EC2_INSTANCE',
+          region: 'ap-south-1',
+          state: 'running',
+          instanceTypeOrClass: 'm5.large',
+          monthlyCostUsd: 73.73,
+          avgCpuPercent: 3.4,
+          cpuSeries: [4.2, 3.8, 3.1, 2.9, 3.5, 3.0, 3.3, 3.9, 3.2, 3.1, 3.6, 3.4, 3.2, 3.4],
+          metadata: { vpcId: 'vpc-0ccg771', publicIp: '65.0.192.14', launchDaysAgo: 31, managedBy: 'Ansible' }
+        },
+        {
+          id: 'res-4',
+          awsResourceId: 'vol-0f12d99a0b338c774',
+          name: 'orphaned-postgres-backup-vol',
+          resourceType: 'EBS_VOLUME',
+          region: 'ap-south-1',
+          state: 'available',
+          instanceTypeOrClass: 'gp2 (50 GB)',
+          monthlyCostUsd: 5.00,
+          avgCpuPercent: null,
+          cpuSeries: [],
+          metadata: { sizeGb: 50, encrypted: false, daysUnattached: 14, managedBy: 'Manual' }
+        },
+        {
+          id: 'res-5',
+          awsResourceId: 'i-09c44a117b881d505',
+          name: 'ccg-prod-api-host',
+          resourceType: 'EC2_INSTANCE',
+          region: 'ap-south-1',
+          state: 'running',
+          instanceTypeOrClass: 't3.small',
+          monthlyCostUsd: 18.83,
+          avgCpuPercent: 46.5,
+          cpuSeries: [42, 48, 51, 44, 49, 45, 47, 52, 43, 46, 48, 44, 45, 47],
+          metadata: { vpcId: 'vpc-0ccg771', publicIp: '13.127.44.9', launchDaysAgo: 12, managedBy: 'Terraform (ec2.tf)' }
+        },
+        {
+          id: 'res-6',
+          awsResourceId: 'i-07b31e882c904f219',
+          name: 'dev-experiment-runner',
+          resourceType: 'EC2_INSTANCE',
+          region: 'ap-south-1',
+          state: 'running',
+          instanceTypeOrClass: 't3.small',
+          monthlyCostUsd: 9.80,
+          avgCpuPercent: 8.2,
+          cpuSeries: [9.1, 8.4, 7.8, 8.0, 8.5, 7.9, 8.3, 8.6, 7.5, 8.1, 8.4, 8.0, 8.2, 8.0],
+          metadata: { vpcId: 'vpc-0ccg771', publicIp: '13.233.19.55', launchDaysAgo: 9, managedBy: 'Manual' }
+        }
+      ],
+      recommendations: [
+        {
+          id: 'rec-101',
+          resourceId: 'res-1',
+          awsResourceId: 'i-08f92b4c1a701e923',
+          resourceName: 'ccg-waste-idle-worker-01',
+          resourceType: 'EC2_INSTANCE',
+          ruleId: 'RULE_EC2_IDLE_CPU',
+          title: 'Stop Idle EC2 Instance (14d Avg CPU 1.8%)',
+          reason: '14-day CloudWatch CPU average is 1.8% (below 5.0% threshold). Stopping eliminates compute and public IPv4 hourly charges.',
+          suggestedAction: 'ec2:StopInstances',
+          severity: 'HIGH',
+          estimatedMonthlySavingsUsd: 34.02,
+          status: 'PROPOSED',
+          approvedBy: null,
+          remediationResult: null,
+          rollbackSnapshotId: null
+        },
+        {
+          id: 'rec-102',
+          resourceId: 'res-2',
+          awsResourceId: 'vol-0a91f3b2e8c441021',
+          resourceName: 'ccg-unattached-jenkins-cache',
+          resourceType: 'EBS_VOLUME',
+          ruleId: 'RULE_EBS_UNATTACHED',
+          title: 'Snapshot & Delete Unattached 100 GB gp3 Volume',
+          reason: 'EBS volume has remained in state "available" (unattached to any EC2 instance) for 24 days.',
+          suggestedAction: 'ec2:CreateSnapshot -> ec2:DeleteVolume',
+          severity: 'MEDIUM',
+          estimatedMonthlySavingsUsd: 8.00,
+          status: 'PROPOSED',
+          approvedBy: null,
+          remediationResult: null,
+          rollbackSnapshotId: null
+        },
+        {
+          id: 'rec-103',
+          resourceId: 'res-3',
+          awsResourceId: 'i-04d18e3a9f612c110',
+          resourceName: 'staging-analytics-node',
+          resourceType: 'EC2_INSTANCE',
+          ruleId: 'RULE_EC2_IDLE_CPU',
+          title: 'Stop Underutilized m5.large Instance (14d Avg CPU 3.4%)',
+          reason: '14-day CloudWatch CPU average is 3.4% (below 5.0% threshold) on high-cost m5.large instance.',
+          suggestedAction: 'ec2:StopInstances',
+          severity: 'HIGH',
+          estimatedMonthlySavingsUsd: 73.73,
+          status: 'APPROVED',
+          approvedBy: 'Himansu Mallik (RA2311003012367)',
+          remediationResult: null,
+          rollbackSnapshotId: null
+        },
+        {
+          id: 'rec-104',
+          resourceId: 'res-4',
+          awsResourceId: 'vol-0f12d99a0b338c774',
+          resourceName: 'orphaned-postgres-backup-vol',
+          resourceType: 'EBS_VOLUME',
+          ruleId: 'RULE_EBS_UNATTACHED',
+          title: 'Snapshot & Delete Unattached 50 GB gp2 Volume',
+          reason: 'Unencrypted gp2 volume orphaned after database migration for 14 days.',
+          suggestedAction: 'ec2:CreateSnapshot -> ec2:DeleteVolume',
+          severity: 'LOW',
+          estimatedMonthlySavingsUsd: 5.00,
+          status: 'PROPOSED',
+          approvedBy: null,
+          remediationResult: null,
+          rollbackSnapshotId: null
+        }
+      ],
+      auditLogs: [
+        {
+          id: 'aud-102',
+          timestamp: '2026-11-04 15:42:18 IST',
+          action: 'RECOMMENDATION_APPROVED',
+          awsResourceId: 'i-04d18e3a9f612c110',
+          previousStatus: 'PROPOSED',
+          newStatus: 'APPROVED',
+          dryRun: true,
+          actor: 'Himansu Mallik (RA2311003012367)',
+          details: 'Approved ec2:StopInstances on staging-analytics-node ($73.73/mo savings).'
+        },
+        {
+          id: 'aud-101',
+          timestamp: '2026-11-04 15:40:02 IST',
+          action: 'DISCOVERY_SCAN_COMPLETED',
+          awsResourceId: 'ACCOUNT_SCAN (ap-south-1)',
+          previousStatus: '—',
+          newStatus: 'COMPLETED',
+          dryRun: true,
+          actor: 'System (DiscoveryService)',
+          details: 'Enumerated 6 AWS resources via SDK v3 and pulled 14-day CloudWatch CPU metrics.'
+        }
+      ]
+    };
+
+    const CODE_SNIPPETS = {
+      terraform: `# infrastructure/terraform/waste.tf — Intentional FinOps Waste Module + $5 Budget Alarm
+resource "aws_instance" "idle_waste_instance" {
+  count                  = var.enable_waste_simulation ? 1 : 0
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = "t3.micro"
+  subnet_id              = aws_subnet.public_a.id
+  vpc_security_group_ids = [aws_security_group.ccg_sg.id]
+  tags = {
+    Name        = "ccg-waste-idle-worker"
+    Purpose     = "FinOpsWasteSimulation"
+    Environment = "sandbox-waste"
+  }
+}
+
+resource "aws_ebs_volume" "unattached_waste_volume" {
+  count             = var.enable_waste_simulation ? 1 : 0
+  availability_zone = "\${var.aws_region}a"
+  size              = 1
+  type              = "gp3"
+  encrypted         = true
+  tags = {
+    Name        = "ccg-unattached-1gb-waste"
+    Purpose     = "FinOpsWasteSimulation"
+  }
+}
+
+resource "aws_budgets_budget" "five_dollar_guardrail" {
+  name         = "ccg-5-dollar-monthly-budget"
+  budget_type  = "COST"
+  limit_amount = "5.0"
+  limit_unit   = "USD"
+  time_unit    = "MONTHLY"
+}`,
+      jenkins: `// Jenkinsfile — Local Docker Jenkins Polling GitHub + GHCR Push + Manual Gate + Ansible Deploy
+pipeline {
+    agent any
+    environment {
+        IMAGE_PREFIX = 'ghcr.io/cloud-cost-guardian'
+        AWS_REGION   = 'ap-south-1'
+    }
+    triggers { pollSCM('H/5 * * * *') }
+    stages {
+        stage('Install, Lint & Unit Tests') {
+            steps {
+                sh 'npm --prefix apps/api ci && npm --prefix apps/api run lint'
+                sh 'npm --prefix apps/api test'
+            }
+        }
+        stage('Security Scan (Trivy & npm audit)') {
+            steps {
+                sh 'trivy fs --exit-code 0 --severity HIGH,CRITICAL .'
+            }
+        }
+        stage('Terraform Validate') {
+            steps {
+                dir('infrastructure/terraform') {
+                    sh 'terraform init -backend=false && terraform validate'
+                }
+            }
+        }
+        stage('Manual Approval Gate') {
+            steps {
+                input message: 'Approve deployment to AWS EC2 Sandbox?', ok: 'Approve & Deploy'
+            }
+        }
+        stage('Ansible Deploy to EC2') {
+            steps {
+                dir('infrastructure/ansible') {
+                    sh 'ansible-playbook -i inventory/aws_ec2.yml playbook.yml'
+                }
+            }
+        }
+    }
+}`,
+      ansible: `# infrastructure/ansible/inventory/aws_ec2.yml — Dynamic EC2 Inventory Plugin
+plugin: amazon.aws.aws_ec2
+regions:
+  - ap-south-1
+filters:
+  tag:Project: CloudCostGuardian
+  instance-state-name: running
+
+---
+# infrastructure/ansible/playbook.yml — Install Docker & Run Compose Stack on EC2
+- name: Configure EC2 Host and Deploy Cloud Cost Guardian
+  hosts: all
+  become: true
+  tasks:
+    - name: Install Docker and Compose plugin
+      apt:
+        name: [docker.io, docker-compose-v2]
+        state: present
+        update_cache: true
+    - name: Copy docker-compose.yml and start containers
+      command: docker compose up -d
+      args:
+        chdir: /opt/cloud-cost-guardian`,
+      k8s: `# infrastructure/k8s/manifests.yaml — Local Kubernetes (kind / k3d) Manifests
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ccg-api
+  namespace: cloud-cost-guardian
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ccg-api
+  template:
+    metadata:
+      labels:
+        app: ccg-api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/cloud-cost-guardian/api:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: ccg-config`,
+      sql: `-- apps/api/src/db/schema.sql — Core PostgreSQL Tables
+CREATE TABLE resources (
+    id VARCHAR(64) PRIMARY KEY,
+    aws_resource_id VARCHAR(128) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    resource_type VARCHAR(32) NOT NULL,
+    region VARCHAR(32) NOT NULL,
+    state VARCHAR(64) NOT NULL,
+    monthly_cost_usd NUMERIC(10, 2) NOT NULL,
+    avg_cpu_percent NUMERIC(5, 2),
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE recommendations (
+    id VARCHAR(64) PRIMARY KEY,
+    resource_id VARCHAR(64) REFERENCES resources(id),
+    rule_id VARCHAR(64) NOT NULL,
+    estimated_monthly_savings_usd NUMERIC(10, 2) NOT NULL,
+    status VARCHAR(32) NOT NULL CHECK (status IN ('PROPOSED','APPROVED','REJECTED','EXECUTING','COMPLETED','FAILED')),
+    approved_by VARCHAR(128),
+    rollback_snapshot_id VARCHAR(128)
+);`
+    };
+
+    let cwChart = null;
+
+    function showToast(message, tone = 'emerald') {
+      const container = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      const borderColors = {
+        emerald: 'border-emerald-500/50 bg-slate-900 text-emerald-300',
+        sky: 'border-sky-500/50 bg-slate-900 text-sky-300',
+        amber: 'border-amber-500/50 bg-slate-900 text-amber-300',
+        rose: 'border-rose-500/50 bg-slate-900 text-rose-300'
+      };
+      el.className = `px-4 py-3 rounded-xl border shadow-xl text-xs font-medium transition ${borderColors[tone] || borderColors.emerald}`;
+      el.textContent = message;
+      container.appendChild(el);
+      setTimeout(() => {
+        el.remove();
+      }, 3600);
+    }
+
+    function nowTimestamp() {
+      const d = new Date();
+      return d.toISOString().replace('T', ' ').slice(0, 19) + ' IST';
+    }
+
+    function addAuditLog(action, awsResourceId, previousStatus, newStatus, details) {
+      state.auditLogs.unshift({
+        id: 'aud-' + Date.now() + '-' + Math.floor(Math.random() * 100),
+        timestamp: nowTimestamp(),
+        action,
+        awsResourceId,
+        previousStatus: previousStatus || '—',
+        newStatus,
+        dryRun: state.dryRun,
+        actor: state.actor,
+        details
+      });
+    }
+
+    function statusBadgeHtml(status) {
+      const map = {
+        PROPOSED: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+        APPROVED: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+        EXECUTING: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+        COMPLETED: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+        REJECTED: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
+        FAILED: 'bg-red-500/15 text-red-300 border-red-500/30'
+      };
+      return `<span class="text-xs font-mono font-semibold px-2.5 py-0.5 rounded-full border ${map[status] || map.PROPOSED}">${status}</span>`;
+    }
+
+    function renderKpis() {
+      const totalSpend = state.resources.reduce((s, r) => s + r.monthlyCostUsd, 0);
+      const potential = state.recommendations
+        .filter((r) => r.status !== 'REJECTED')
+        .reduce((s, r) => s + r.estimatedMonthlySavingsUsd, 0);
+      const realized = state.recommendations
+        .filter((r) => r.status === 'COMPLETED')
+        .reduce((s, r) => s + r.estimatedMonthlySavingsUsd, 0);
+      const completedCount = state.recommendations.filter((r) => r.status === 'COMPLETED').length;
+
+      document.getElementById('kpi-region-badge').textContent = state.region;
+      document.getElementById('kpi-resource-count').textContent = String(state.resources.length);
+      document.getElementById('kpi-monthly-spend').textContent = `Spend: $${totalSpend.toFixed(2)}/mo`;
+      document.getElementById('kpi-potential-savings').textContent = `$${potential.toFixed(2)}/mo`;
+      document.getElementById('kpi-annual-savings').textContent = `$${(potential * 12).toFixed(2)}/yr`;
+      document.getElementById('kpi-realized-savings').textContent = `$${realized.toFixed(2)}/mo`;
+      document.getElementById('kpi-completed-count').textContent = `${completedCount} action${completedCount === 1 ? '' : 's'} completed`;
+      document.getElementById('kpi-cpu-threshold').textContent = state.cpuThreshold.toFixed(1);
+
+      document.getElementById('state-count-proposed').textContent = String(state.recommendations.filter((r) => r.status === 'PROPOSED').length);
+      document.getElementById('state-count-approved').textContent = String(state.recommendations.filter((r) => r.status === 'APPROVED').length);
+      document.getElementById('state-count-executing').textContent = String(state.recommendations.filter((r) => r.status === 'EXECUTING').length);
+      document.getElementById('state-count-completed').textContent = String(state.recommendations.filter((r) => r.status === 'COMPLETED').length);
+      document.getElementById('state-count-rejected').textContent = String(state.recommendations.filter((r) => r.status === 'REJECTED').length);
+    }
+
+    function renderRecommendations() {
+      const container = document.getElementById('recommendations-list');
+      const filtered = state.recommendations.filter((r) =>
+        state.statusFilter === 'ALL' ? true : r.status === state.statusFilter
+      );
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center text-xs text-slate-400">No recommendations match status filter <span class="font-mono text-white">${state.statusFilter}</span>.</div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map((rec) => {
+        const actionsHtml = rec.status === 'PROPOSED'
+          ? `<button type="button" data-action="approve" data-id="${rec.id}" class="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold transition">Approve</button>
+             <button type="button" data-action="reject" data-id="${rec.id}" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-950 hover:text-rose-300 border border-slate-700 text-slate-300 text-xs font-medium transition">Reject</button>`
+          : rec.status === 'APPROVED'
+          ? `<button type="button" data-action="execute" data-id="${rec.id}" class="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition shadow-md">
+               Execute (${state.dryRun ? 'Dry-Run' : 'Live AWS'})
+             </button>
+             <button type="button" data-action="reject" data-id="${rec.id}" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-300 text-xs transition">Cancel</button>`
+          : `<span class="text-xs font-mono text-slate-400">${rec.status === 'COMPLETED' ? 'Remediated' : 'Closed'}</span>`;
+
+        const resultBanner = rec.remediationResult
+          ? `<div class="mt-3 px-3 py-2 rounded-lg bg-slate-950 border border-emerald-500/30 text-xs text-emerald-300 font-mono">${rec.remediationResult}</div>`
+          : '';
+
+        const approverBanner = rec.approvedBy
+          ? `<div class="mt-1.5 text-xs text-sky-300">Approved by <span class="font-medium">${rec.approvedBy}</span></div>`
+          : '';
+
+        return `
+          <div class="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl p-4 transition">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div class="space-y-1 max-w-3xl">
+                <div class="flex flex-wrap items-center gap-2">
+                  ${statusBadgeHtml(rec.status)}
+                  <span class="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">${rec.awsResourceId}</span>
+                  <span class="text-xs font-mono px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-amber-300">${rec.suggestedAction}</span>
+                </div>
+                <h3 class="text-sm sm:text-base font-bold text-white pt-1">${rec.title} — <span class="text-emerald-400">${rec.resourceName}</span></h3>
+                <p class="text-xs text-slate-400 leading-relaxed">${rec.reason}</p>
+                ${approverBanner}
+                ${resultBanner}
+              </div>
+              <div class="flex flex-col items-end justify-between gap-3 ml-auto">
+                <div class="text-right">
+                  <div class="text-xs text-slate-400">Estimated Savings</div>
+                  <div class="text-lg font-bold text-emerald-400">$${rec.estimatedMonthlySavingsUsd.toFixed(2)}<span class="text-xs font-normal text-slate-400">/mo</span></div>
+                </div>
+                <div class="flex items-center gap-2">
+                  ${actionsHtml}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderInventory() {
+      const query = (document.getElementById('resource-search').value || '').toLowerCase();
+      const tbody = document.getElementById('inventory-tbody');
+      const filtered = state.resources.filter((r) =>
+        r.name.toLowerCase().includes(query) ||
+        r.awsResourceId.toLowerCase().includes(query) ||
+        r.resourceType.toLowerCase().includes(query)
+      );
+
+      tbody.innerHTML = filtered.map((r) => {
+        const isSelected = r.id === state.selectedResourceId;
+        const cpuText = r.avgCpuPercent !== null
+          ? `<span class="font-mono font-semibold ${r.avgCpuPercent < state.cpuThreshold ? 'text-amber-400' : 'text-emerald-400'}">${r.avgCpuPercent.toFixed(1)}%</span>`
+          : `<span class="text-slate-500">N/A (Storage)</span>`;
+
+        const stateColor = r.state === 'running'
+          ? 'text-emerald-400'
+          : r.state === 'available'
+          ? 'text-amber-400'
+          : 'text-rose-400';
+
+        return `
+          <tr data-resource-id="${r.id}" class="resource-row cursor-pointer hover:bg-slate-800/60 transition ${isSelected ? 'bg-slate-800/90' : ''}">
+            <td class="py-3 px-2">
+              <div class="font-semibold text-white">${r.name}</div>
+              <div class="font-mono text-slate-400 text-[11px]">${r.awsResourceId}</div>
+            </td>
+            <td class="py-3 px-2">
+              <div class="text-slate-200">${r.resourceType}</div>
+              <div class="font-mono text-slate-400 text-[11px]">${r.instanceTypeOrClass}</div>
+            </td>
+            <td class="py-3 px-2 font-mono ${stateColor}">${r.state}</td>
+            <td class="py-3 px-2 text-right">${cpuText}</td>
+            <td class="py-3 px-2 text-right font-mono font-semibold text-white">$${r.monthlyCostUsd.toFixed(2)}/mo</td>
+          </tr>
+        `;
+      }).join('');
+
+      renderCloudWatchChart();
+    }
+
+    function renderCloudWatchChart() {
+      const res = state.resources.find((r) => r.id === state.selectedResourceId) || state.resources[0];
+      if (!res) return;
+
+      document.getElementById('cw-selected-id').textContent = res.awsResourceId;
+      document.getElementById('cw-selected-name').textContent = res.name;
+
+      const metaBox = document.getElementById('cw-metadata-box');
+      metaBox.innerHTML = Object.entries(res.metadata || {}).map(
+        ([k, v]) => `<div class="flex justify-between"><span class="text-slate-400">${k}:</span><span class="font-mono text-slate-200">${v}</span></div>`
+      ).join('');
+
+      const ctx = document.getElementById('cloudwatch-chart').getContext('2d');
+      const labels = Array.from({ length: 14 }, (_, i) => `Day ${i + 1}`);
+      const series = res.cpuSeries && res.cpuSeries.length
+        ? res.cpuSeries
+        : Array.from({ length: 14 }, () => 0);
+      const thresholdLine = Array.from({ length: 14 }, () => state.cpuThreshold);
+
+      if (cwChart) {
+        cwChart.destroy();
+      }
+
+      cwChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'CPUUtilization (%)',
+              data: series,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.15)',
+              fill: true,
+              tension: 0.35,
+              pointRadius: 3
+            },
+            {
+              label: `Idle Threshold (${state.cpuThreshold.toFixed(1)}%)`,
+              data: thresholdLine,
+              borderColor: '#f59e0b',
+              borderDash: [5, 5],
+              pointRadius: 0,
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }
+          },
+          scales: {
+            x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(148, 163, 184, 0.1)' } },
+            y: { beginAtZero: true, suggestedMax: 20, ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(148, 163, 184, 0.1)' } }
+          }
+        }
+      });
+    }
+
+    function renderAuditLogs() {
+      const tbody = document.getElementById('audit-tbody');
+      tbody.innerHTML = state.auditLogs.map((log) => `
+        <tr class="hover:bg-slate-800/40">
+          <td class="py-2.5 px-2 font-mono text-slate-400 whitespace-nowrap">${log.timestamp}</td>
+          <td class="py-2.5 px-2 font-mono font-semibold text-emerald-300">${log.action}</td>
+          <td class="py-2.5 px-2 font-mono text-slate-200">${log.awsResourceId}</td>
+          <td class="py-2.5 px-2 font-mono text-xs">
+            <span class="text-slate-400">${log.previousStatus}</span> → <span class="text-sky-300 font-semibold">${log.newStatus}</span>
+          </td>
+          <td class="py-2.5 px-2">
+            <span class="px-2 py-0.5 rounded text-[11px] font-mono ${log.dryRun ? 'bg-amber-500/15 text-amber-300' : 'bg-rose-500/20 text-rose-300'}">
+              ${log.dryRun ? 'DRY-RUN' : 'LIVE AWS'}
+            </span>
+          </td>
+          <td class="py-2.5 px-2 text-slate-200">${log.actor}</td>
+          <td class="py-2.5 px-2 text-slate-300">${log.details}</td>
+        </tr>
+      `).join('');
+    }
+
+    function recalculateThresholdRules() {
+      state.resources.forEach((res) => {
+        if (res.resourceType === 'EC2_INSTANCE' && res.avgCpuPercent !== null) {
+          const existing = state.recommendations.find((r) => r.resourceId === res.id);
+          if (res.avgCpuPercent < state.cpuThreshold && !existing && res.state === 'running') {
+            state.recommendations.unshift({
+              id: 'rec-' + Date.now() + '-' + Math.floor(Math.random() * 100),
+              resourceId: res.id,
+              awsResourceId: res.awsResourceId,
+              resourceName: res.name,
+              resourceType: 'EC2_INSTANCE',
+              ruleId: 'RULE_EC2_IDLE_CPU',
+              title: `Stop Idle EC2 Instance (14d Avg CPU ${res.avgCpuPercent}% < ${state.cpuThreshold.toFixed(1)}%)`,
+              reason: `Instance CPU average (${res.avgCpuPercent}%) is below configured ${state.cpuThreshold.toFixed(1)}% threshold.`,
+              suggestedAction: 'ec2:StopInstances',
+              severity: 'MEDIUM',
+              estimatedMonthlySavingsUsd: res.monthlyCostUsd,
+              status: 'PROPOSED',
+              approvedBy: null,
+              remediationResult: null,
+              rollbackSnapshotId: null
+            });
+          }
+        }
+      });
+    }
+
+    function renderAll() {
+      renderKpis();
+      renderRecommendations();
+      renderInventory();
+      renderAuditLogs();
+    }
+
+    // --- EVENT LISTENERS ---
+    document.addEventListener('DOMContentLoaded', () => {
+      // Initial Code Viewer content
+      document.getElementById('code-viewer-content').textContent = CODE_SNIPPETS.terraform;
+
+      // Tab Switching
+      document.querySelectorAll('.tab-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const tab = btn.getAttribute('data-tab');
+          state.activeTab = tab;
+          document.querySelectorAll('.tab-btn').forEach((b) => {
+            b.className = 'tab-btn px-4 py-2 text-xs sm:text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition';
+          });
+          btn.className = 'tab-btn px-4 py-2 text-xs sm:text-sm font-semibold border-b-2 border-emerald-400 text-emerald-400 transition';
+
+          document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.add('hidden'));
+          document.getElementById(`tab-${tab}`).classList.remove('hidden');
+          if (tab === 'inventory') {
+            renderCloudWatchChart();
+          }
+        });
+      });
+
+      // Operator & Region Selectors
+      document.getElementById('actor-select').addEventListener('change', (e) => {
+        state.actor = e.target.value;
+        showToast(`Active operator switched to ${state.actor}`, 'sky');
+      });
+
+      document.getElementById('region-select').addEventListener('change', (e) => {
+        state.region = e.target.value;
+        state.resources.forEach((r) => { r.region = state.region; });
+        renderAll();
+        showToast(`Switched AWS region to ${state.region}`, 'emerald');
+      });
+
+      // Dry-Run Toggle
+      document.getElementById('dry-run-toggle').addEventListener('click', () => {
+        state.dryRun = !state.dryRun;
+        const btn = document.getElementById('dry-run-toggle');
+        const dot = document.getElementById('dry-run-dot');
+        const label = document.getElementById('dry-run-label');
+        if (state.dryRun) {
+          btn.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition bg-amber-500/15 border-amber-500/40 text-amber-300';
+          dot.className = 'w-2 h-2 rounded-full bg-amber-400';
+          label.textContent = 'Dry-Run Mode: ON';
+          showToast('Dry-Run Mode enabled — AWS SDK actions will be simulated safely.', 'amber');
+        } else {
+          btn.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition bg-rose-500/20 border-rose-500/50 text-rose-300';
+          dot.className = 'w-2 h-2 rounded-full bg-rose-400 animate-pulse';
+          label.textContent = 'Live AWS Mode: ON';
+          showToast('Live AWS Execution Mode enabled — Approved actions will modify resources.', 'rose');
+        }
+        renderRecommendations();
+      });
+
+      // CPU Threshold Slider
+      document.getElementById('cpu-threshold-slider').addEventListener('input', (e) => {
+        state.cpuThreshold = parseFloat(e.target.value);
+        document.getElementById('cpu-threshold-display').textContent = `${state.cpuThreshold.toFixed(1)}%`;
+        recalculateThresholdRules();
+        renderAll();
+      });
+
+      // Status Filter Buttons
+      document.querySelectorAll('.rec-filter-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          state.statusFilter = btn.getAttribute('data-status-filter');
+          document.querySelectorAll('.rec-filter-btn').forEach((b) => {
+            b.className = 'rec-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 border border-slate-800';
+          });
+          btn.className = 'rec-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 text-slate-950';
+          renderRecommendations();
+        });
+      });
+
+      // Approve All Proposed
+      document.getElementById('btn-approve-all').addEventListener('click', () => {
+        let count = 0;
+        state.recommendations.forEach((rec) => {
+          if (rec.status === 'PROPOSED') {
+            rec.status = 'APPROVED';
+            rec.approvedBy = state.actor;
+            addAuditLog('RECOMMENDATION_APPROVED', rec.awsResourceId, 'PROPOSED', 'APPROVED', `Bulk-approved ${rec.suggestedAction} on ${rec.resourceName}.`);
+            count++;
+          }
+        });
+        renderAll();
+        showToast(count > 0 ? `Approved ${count} proposed recommendation(s).` : 'No PROPOSED items waiting for approval.', 'sky');
+      });
+
+      // Recommendation Action Delegation (Approve, Reject, Execute)
+      document.getElementById('recommendations-list').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        const action = btn.getAttribute('data-action');
+        const id = btn.getAttribute('data-id');
+        const rec = state.recommendations.find((r) => r.id === id);
+        if (!rec) return;
+
+        if (action === 'approve') {
+          const prev = rec.status;
+          rec.status = 'APPROVED';
+          rec.approvedBy = state.actor;
+          addAuditLog('RECOMMENDATION_APPROVED', rec.awsResourceId, prev, 'APPROVED', `Approved ${rec.suggestedAction} on ${rec.resourceName} ($${rec.estimatedMonthlySavingsUsd.toFixed(2)}/mo).`);
+          showToast(`Approved ${rec.resourceName}. Ready for execution.`, 'sky');
+        } else if (action === 'reject') {
+          const prev = rec.status;
+          rec.status = 'REJECTED';
+          addAuditLog('RECOMMENDATION_REJECTED', rec.awsResourceId, prev, 'REJECTED', `Rejected recommendation on ${rec.resourceName} by ${state.actor}.`);
+          showToast(`Rejected recommendation for ${rec.resourceName}.`, 'rose');
+        } else if (action === 'execute') {
+          rec.status = 'EXECUTING';
+          renderAll();
+          const snapId = rec.resourceType === 'EBS_VOLUME' ? `snap-0ccg${Math.random().toString(16).slice(2, 9)}` : null;
+          rec.rollbackSnapshotId = snapId;
+          rec.status = 'COMPLETED';
+          rec.remediationResult = state.dryRun
+            ? `[DRY-RUN VALIDATED] Simulated ${rec.suggestedAction} on ${rec.awsResourceId}${snapId ? ` (Simulated rollback snapshot ${snapId})` : ''} with zero downtime.`
+            : `[LIVE AWS REMEDIATED] Executed ${rec.suggestedAction} on ${rec.awsResourceId}${snapId ? ` after creating safety backup ${snapId}` : ''}.`;
+
+          const targetRes = state.resources.find((r) => r.id === rec.resourceId);
+          if (targetRes && !state.dryRun) {
+            targetRes.state = rec.resourceType === 'EC2_INSTANCE' ? 'stopped' : 'deleted (snapshotted)';
+          }
+
+          addAuditLog(
+            state.dryRun ? 'REMEDIATION_DRY_RUN_COMPLETED' : 'REMEDIATION_LIVE_COMPLETED',
+            rec.awsResourceId,
+            'APPROVED',
+            'COMPLETED',
+            rec.remediationResult
+          );
+          showToast(`Executed ${rec.suggestedAction} (${state.dryRun ? 'Dry-Run' : 'Live Mode'})!`, 'emerald');
+        }
+        renderAll();
+      });
+
+      // Spawn Terraform Waste Module Simulation
+      document.getElementById('btn-spawn-waste').addEventListener('click', () => {
+        state.wasteCounter++;
+        const suffix = String(state.wasteCounter).padStart(2, '0');
+        const instId = `i-0ccg${Math.random().toString(16).slice(2, 11)}`;
+        const volId = `vol-0ccg${Math.random().toString(16).slice(2, 11)}`;
+        const newEc2Id = `res-waste-ec2-${state.wasteCounter}`;
+        const newEbsId = `res-waste-ebs-${state.wasteCounter}`;
+
+        state.resources.unshift(
+          {
+            id: newEc2Id,
+            awsResourceId: instId,
+            name: `ccg-waste-idle-worker-${suffix}`,
+            resourceType: 'EC2_INSTANCE',
+            region: state.region,
+            state: 'running',
+            instanceTypeOrClass: 't3.small',
+            monthlyCostUsd: 18.83,
+            avgCpuPercent: 1.2,
+            cpuSeries: [1.4, 1.1, 1.3, 1.0, 1.2, 1.5, 1.1, 1.2, 1.3, 1.1, 1.2, 1.0, 1.3, 1.2],
+            metadata: { vpcId: 'vpc-0ccg771', publicIp: '13.232.190.42', launchDaysAgo: 14, managedBy: 'Terraform (waste.tf)' }
+          },
+          {
+            id: newEbsId,
+            awsResourceId: volId,
+            name: `ccg-unattached-1gb-waste-${suffix}`,
+            resourceType: 'EBS_VOLUME',
+            region: state.region,
+            state: 'available',
+            instanceTypeOrClass: 'gp3 (20 GB)',
+            monthlyCostUsd: 1.60,
+            avgCpuPercent: null,
+            cpuSeries: [],
+            metadata: { sizeGb: 20, encrypted: true, daysUnattached: 15, managedBy: 'Terraform (waste.tf)' }
+          }
+        );
+
+        state.recommendations.unshift(
+          {
+            id: `rec-waste-ec2-${state.wasteCounter}`,
+            resourceId: newEc2Id,
+            awsResourceId: instId,
+            resourceName: `ccg-waste-idle-worker-${suffix}`,
+            resourceType: 'EC2_INSTANCE',
+            ruleId: 'RULE_EC2_IDLE_CPU',
+            title: 'Stop Idle Terraform Waste Instance (Avg CPU 1.2%)',
+            reason: 'Spawned via infrastructure/terraform/waste.tf with 1.2% average CPU utilization.',
+            suggestedAction: 'ec2:StopInstances',
+            severity: 'HIGH',
+            estimatedMonthlySavingsUsd: 18.83,
+            status: 'PROPOSED',
+            approvedBy: null,
+            remediationResult: null,
+            rollbackSnapshotId: null
+          },
+          {
+            id: `rec-waste-ebs-${state.wasteCounter}`,
+            resourceId: newEbsId,
+            awsResourceId: volId,
+            resourceName: `ccg-unattached-1gb-waste-${suffix}`,
+            resourceType: 'EBS_VOLUME',
+            ruleId: 'RULE_EBS_UNATTACHED',
+            title: 'Snapshot & Delete Unattached Terraform Waste Volume',
+            reason: 'Spawned via infrastructure/terraform/waste.tf in "available" (unattached) state.',
+            suggestedAction: 'ec2:CreateSnapshot -> ec2:DeleteVolume',
+            severity: 'LOW',
+            estimatedMonthlySavingsUsd: 1.60,
+            status: 'PROPOSED',
+            approvedBy: null,
+            remediationResult: null,
+            rollbackSnapshotId: null
+          }
+        );
+
+        addAuditLog('TERRAFORM_WASTE_APPLIED', `${instId}, ${volId}`, '—', 'PROPOSED', 'Applied infrastructure/terraform/waste.tf and flagged 2 new waste resources.');
+        renderAll();
+        showToast('Applied Terraform waste module: added 1 idle EC2 + 1 unattached EBS volume!', 'emerald');
+      });
+
+      // Run AWS Scan Button
+      document.getElementById('btn-run-scan').addEventListener('click', () => {
+        const label = document.getElementById('scan-btn-text');
+        label.textContent = 'Scanning AWS...';
+        setTimeout(() => {
+          recalculateThresholdRules();
+          addAuditLog('DISCOVERY_SCAN_COMPLETED', `ACCOUNT_SCAN (${state.region})`, 'RUNNING', 'COMPLETED', `Scanned ${state.resources.length} AWS resources and evaluated CloudWatch metrics against ${state.cpuThreshold.toFixed(1)}% CPU threshold.`);
+          label.textContent = 'Run AWS Scan';
+          renderAll();
+          showToast(`AWS SDK v3 scan completed in ${state.region} (${state.resources.length} resources analyzed).`, 'emerald');
+        }, 450);
+      });
+
+      // Resource Inventory Search & Row Click
+      document.getElementById('resource-search').addEventListener('input', () => {
+        renderInventory();
+      });
+
+      document.getElementById('inventory-tbody').addEventListener('click', (e) => {
+        const row = e.target.closest('tr[data-resource-id]');
+        if (!row) return;
+        state.selectedResourceId = row.getAttribute('data-resource-id');
+        renderInventory();
+      });
+
+      // Export Audit CSV
+      document.getElementById('btn-export-audit').addEventListener('click', () => {
+        const headers = ['Timestamp', 'Action', 'AWS_Resource_ID', 'Previous_Status', 'New_Status', 'Dry_Run', 'Actor', 'Details'];
+        const rows = state.auditLogs.map((l) => [
+          l.timestamp, l.action, l.awsResourceId, l.previousStatus, l.newStatus, l.dryRun, `"${l.actor}"`, `"${l.details.replace(/"/g, '""')}"`
+        ]);
+        const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'cloud-cost-guardian-audit-logs.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('Exported audit_logs.csv', 'sky');
+      });
+
+      // Code Viewer Switcher & Copy
+      document.querySelectorAll('.code-tab-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const key = btn.getAttribute('data-code-file');
+          document.querySelectorAll('.code-tab-btn').forEach((b) => {
+            b.className = 'code-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-950 text-slate-300 border border-slate-800';
+          });
+          btn.className = 'code-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 text-slate-950';
+          document.getElementById('code-viewer-content').textContent = CODE_SNIPPETS[key] || '';
+        });
+      });
+
+      document.getElementById('btn-copy-code').addEventListener('click', () => {
+        const text = document.getElementById('code-viewer-content').textContent;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).catch(() => {});
+        }
+        showToast('Copied code snippet to clipboard!', 'emerald');
+      });
+
+      renderAll();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+---
+- name: Provision EC2 Host and Deploy Cloud Cost Guardian Stack
+  hosts: all
+  become: true
+  roles:
+    - docker
+    - deploy

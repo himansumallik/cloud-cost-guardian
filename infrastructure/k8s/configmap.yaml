@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ccg-config
+  namespace: cloud-cost-guardian
+data:
+  PORT: "3000"
+  AWS_REGION: "ap-south-1"
+  DEMO_MODE: "true"
+  DRY_RUN_DEFAULT: "true"
+  IDLE_CPU_THRESHOLD: "5.0"
+  LOOKBACK_DAYS: "14"
