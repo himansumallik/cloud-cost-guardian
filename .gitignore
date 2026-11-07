@@ -10,3 +10,4 @@ build/
 coverage/
 .DS_Store
 apps/api/.env
+apps/api/.env.example
