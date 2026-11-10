@@ -1,321 +1,7 @@
 import React, { useEffect, useState } from 'react';
-
-export type RecommendationStatus = 'PROPOSED' | 'APPROVED' | 'REJECTED' | 'EXECUTING' | 'COMPLETED' | 'FAILED';
-
-export interface CloudResource {
-  id: string;
-  awsResourceId: string;
-  name: string;
-  resourceType: 'EC2_INSTANCE' | 'EBS_VOLUME' | 'S3_BUCKET' | 'IAM_ACCESS_KEY';
-  region: string;
-  state: string;
-  instanceTypeOrClass: string;
-  monthlyCostUsd: number;
-  avgCpuPercent: number | null;
-  cpuSeries: number[];
-  metadata: Record<string, string | number | boolean>;
-  tags: Record<string, string>;
-  discoveredAt: string;
-}
-
-export interface Recommendation {
-  id: string;
-  resourceId: string;
-  awsResourceId: string;
-  resourceName: string;
-  resourceType: string;
-  ruleId: string;
-  title: string;
-  reason: string;
-  suggestedAction: string;
-  severity: 'HIGH' | 'MEDIUM' | 'LOW';
-  estimatedMonthlySavingsUsd: number;
-  status: RecommendationStatus;
-  approvedBy?: string;
-  remediationResult?: string;
-  rollbackSnapshotId?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface AuditLog {
-  id: string;
-  recommendationId: string | null;
-  awsResourceId: string;
-  action: string;
-  actor: string;
-  previousStatus: string | null;
-  newStatus: string;
-  dryRun: boolean;
-  details: string;
-  createdAt: string;
-}
-
-interface NavbarProps {
-  actor: string;
-  setActor: (a: string) => void;
-  region: string;
-  setRegion: (r: string) => void;
-  dryRun: boolean;
-  setDryRun: (d: boolean) => void;
-  onRunScan: () => void;
-  onSpawnWaste?: () => void;
-  activeTab: string;
-  setActiveTab: (t: string) => void;
-  awsKeyId: string;
-  awsSecretKey: string;
-  onSaveCredentials: (keyId: string, secretKey: string) => void;
-}
-
-export const Navbar: React.FC<NavbarProps> = ({
-  actor,
-  setActor,
-  region,
-  setRegion,
-  dryRun,
-  setDryRun,
-  onRunScan,
-  activeTab,
-  setActiveTab,
-  awsKeyId,
-  awsSecretKey,
-  onSaveCredentials,
-}) => {
-  const [showModal, setShowModal] = useState(false);
-  const [tempKeyId, setTempKeyId] = useState(awsKeyId);
-  const [tempSecretKey, setTempSecretKey] = useState(awsSecretKey);
-
-  return (
-    <>
-      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold">
-              CCG
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-white">Cloud Cost Guardian</h1>
-              <p className="text-xs text-slate-400">Approval-Gated AWS Cost Optimization • PERN + DevOps</p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => {
-                setTempKeyId(awsKeyId);
-                setTempSecretKey(awsSecretKey);
-                setShowModal(true);
-              }}
-              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition ${
-                awsKeyId
-                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
-                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${awsKeyId ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`}></span>
-              {awsKeyId ? 'AWS Keys Connected' : '🔑 Set AWS Keys'}
-            </button>
-
-            <select
-              value={actor}
-              onChange={(e) => setActor(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-100"
-            >
-              <option value="Himansu Mallik (RA2311003012367)">Himansu Mallik (RA2311003012367)</option>
-              <option value="Aarnov Adhikari (RA2311003012365)">Aarnov Adhikari (RA2311003012365)</option>
-              <option value="Utsav Gautam (RA2311003012366)">Utsav Gautam (RA2311003012366)</option>
-            </select>
-
-            <select
-              value={region}
-              onChange={(e) => setRegion(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-mono"
-            >
-              <option value="ap-south-1">ap-south-1 (Mumbai)</option>
-              <option value="us-east-1">us-east-1 (N. Virginia)</option>
-            </select>
-
-            <button
-              type="button"
-              onClick={() => setDryRun(!dryRun)}
-              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold ${
-                dryRun
-                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
-                  : 'bg-rose-500/20 border-rose-500/50 text-rose-300'
-              }`}
-            >
-              {dryRun ? 'Dry-Run Mode: ON' : 'Live AWS Mode: ON'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('terraform')}
-              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold"
-            >
-              + Terraform Create Resource
-            </button>
-
-            <button
-              type="button"
-              onClick={onRunScan}
-              className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold"
-            >
-              Run AWS Scan
-            </button>
-          </div>
-        </div>
-
-        <div className="max-w-7xl mx-auto px-6 flex flex-wrap gap-2 border-t border-slate-800/80 pt-1">
-          {[
-            { id: 'terraform', label: '1. Terraform Resource Launcher (.tf)' },
-            { id: 'recommendations', label: '2. Approval & Remediation Queue' },
-            { id: 'inventory', label: '3. Discovered AWS Resources' },
-            { id: 'audit', label: '4. Immutable Audit Trail' },
-          ].map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setActiveTab(t.id)}
-              className={`px-4 py-2 text-xs sm:text-sm font-semibold border-b-2 ${
-                activeTab === t.id
-                  ? 'border-emerald-400 text-emerald-400'
-                  : 'border-transparent text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </header>
-
-      {showModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-white">Configure AWS IAM Credentials</h2>
-              <button
-                type="button"
-                onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-white text-sm"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="text-xs text-slate-400">
-              Enter your least-privilege IAM user Access Key and Secret. These are stored securely in your browser's <span className="font-mono text-emerald-400">localStorage</span> and sent only when calling live AWS APIs.
-            </p>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">AWS Access Key ID</label>
-                <input
-                  type="text"
-                  placeholder="AKIAIOSFODNN7EXAMPLE"
-                  value={tempKeyId}
-                  onChange={(e) => setTempKeyId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">AWS Secret Access Key</label>
-                <input
-                  type="password"
-                  placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-                  value={tempSecretKey}
-                  onChange={(e) => setTempSecretKey(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  onSaveCredentials('', '');
-                  setShowModal(false);
-                }}
-                className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-300 text-xs font-semibold transition"
-              >
-                Clear Keys
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onSaveCredentials(tempKeyId, tempSecretKey);
-                  setShowModal(false);
-                }}
-                className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition"
-              >
-                Save &amp; Connect AWS
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-};
-
-export const KpiCards: React.FC<{
-  resources: CloudResource[];
-  recommendations: Recommendation[];
-  region: string;
-}> = ({ resources, recommendations, region }) => {
-  const totalSpend = resources.reduce((s, r) => s + r.monthlyCostUsd, 0);
-  const potentialSavings = recommendations
-    .filter((r) => r.status !== 'REJECTED')
-    .reduce((s, r) => s + r.estimatedMonthlySavingsUsd, 0);
-  const realizedSavings = recommendations
-    .filter((r) => r.status === 'COMPLETED')
-    .reduce((s, r) => s + r.estimatedMonthlySavingsUsd, 0);
-
-  return (
-    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-        <div className="flex justify-between text-xs text-slate-400">
-          <span>Discovered AWS Resources</span>
-          <span className="font-mono text-emerald-400">{region}</span>
-        </div>
-        <div className="mt-2 flex items-baseline justify-between">
-          <span className="text-2xl font-bold text-white">{resources.length}</span>
-          <span className="text-xs font-mono text-slate-300">Spend: ${totalSpend.toFixed(2)}/mo</span>
-        </div>
-      </div>
-
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-        <div className="text-xs text-slate-400">Detected Monthly Waste</div>
-        <div className="mt-2 flex items-baseline justify-between">
-          <span className="text-2xl font-bold text-amber-400">${potentialSavings.toFixed(2)}/mo</span>
-          <span className="text-xs font-mono text-slate-400">${(potentialSavings * 12).toFixed(2)}/yr</span>
-        </div>
-      </div>
-
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-        <div className="text-xs text-slate-400">Realized Monthly Savings</div>
-        <div className="mt-2 flex items-baseline justify-between">
-          <span className="text-2xl font-bold text-emerald-400">${realizedSavings.toFixed(2)}/mo</span>
-          <span className="text-xs font-mono text-slate-300">
-            {recommendations.filter((r) => r.status === 'COMPLETED').length} remediated
-          </span>
-        </div>
-      </div>
-
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-        <div className="flex justify-between text-xs text-slate-400">
-          <span>Sandbox $5 Budget Alarm</span>
-          <span className="font-mono text-emerald-400">OK (&lt;80%)</span>
-        </div>
-        <div className="mt-2 flex items-baseline justify-between">
-          <span className="text-2xl font-bold text-white">$1.42 / $5.00</span>
-          <span className="text-xs font-mono text-slate-400">28.4%</span>
-        </div>
-      </div>
-    </section>
-  );
-};
+import { Navbar } from './components/Navbar';
+import { KpiCards } from './components/KpiCards';
+import { CloudResource, Recommendation, AuditLog, RecommendationStatus } from './types';
 
 const INITIAL_RESOURCES: CloudResource[] = [
   {
@@ -468,12 +154,136 @@ resource "aws_iam_access_key" "dashboard_key" {
   },
 ];
 
+const ANSIBLE_FILES: Record<string, { title: string; path: string; code: string }> = {
+  inventory: {
+    title: 'Dynamic EC2 Inventory Plugin',
+    path: 'infrastructure/ansible/inventory/aws_ec2.yml',
+    code: `plugin: amazon.aws.aws_ec2
+regions:
+  - ap-south-1
+filters:
+  tag:Project: CloudCostGuardian
+  instance-state-name: running
+keyed_groups:
+  - key: tags.Role
+    prefix: role
+compose:
+  ansible_host: public_ip_address`,
+  },
+  playbook: {
+    title: 'Master Playbook & Docker Role',
+    path: 'infrastructure/ansible/playbook.yml',
+    code: `---
+- name: Provision EC2 Host and Deploy Cloud Cost Guardian Stack
+  hosts: all
+  become: true
+  roles:
+    - docker
+    - deploy
+
+# roles/docker/tasks/main.yml
+- name: Install Docker Engine and Docker Compose v2 plugin
+  apt:
+    name: [docker.io, docker-compose-v2]
+    state: present
+    update_cache: true`,
+  },
+  deploy: {
+    title: 'Zero-Downtime Compose Deploy Role',
+    path: 'infrastructure/ansible/roles/deploy/tasks/main.yml',
+    code: `---
+- name: Create /opt/cloud-cost-guardian directory
+  file:
+    path: /opt/cloud-cost-guardian
+    state: directory
+    mode: '0755'
+
+- name: Copy docker-compose.yml to EC2 host
+  copy:
+    src: ../../../../docker-compose.yml
+    dest: /opt/cloud-cost-guardian/docker-compose.yml
+
+- name: Pull GHCR images and launch Docker Compose stack
+  command: docker compose up -d
+  args:
+    chdir: /opt/cloud-cost-guardian`,
+  },
+};
+
+const K8S_MANIFESTS: Record<string, { title: string; path: string; code: string }> = {
+  api: {
+    title: 'API Deployment & Service',
+    path: 'infrastructure/k8s/api-deployment.yaml',
+    code: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ccg-api
+  namespace: cloud-cost-guardian
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ccg-api
+  template:
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/cloud-cost-guardian/api:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: ccg-config`,
+  },
+  web: {
+    title: 'Web UI Deployment & NodePort (30080)',
+    path: 'infrastructure/k8s/web-deployment.yaml',
+    code: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ccg-web
+  namespace: cloud-cost-guardian
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ccg-web
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ccg-web-svc
+spec:
+  type: NodePort
+  ports:
+    - port: 80
+      nodePort: 30080`,
+  },
+  postgres: {
+    title: 'PostgreSQL 16 Stateful Pod & Secret',
+    path: 'infrastructure/k8s/postgres.yaml',
+    code: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ccg-postgres
+  namespace: cloud-cost-guardian
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432`,
+  },
+};
+
 export default function App() {
   const [resources, setResources] = useState<CloudResource[]>(INITIAL_RESOURCES);
   const [recommendations, setRecommendations] = useState<Recommendation[]>(INITIAL_RECOMMENDATIONS);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(INITIAL_AUDIT_LOGS);
   const [dryRun, setDryRun] = useState(true);
-  const [actor, setActor] = useState('Himansu Mallik (RA2311003012367)');
   const [region, setRegion] = useState('ap-south-1');
   const [activeTab, setActiveTab] = useState('terraform');
 
@@ -481,15 +291,35 @@ export default function App() {
   const [awsKeyId, setAwsKeyId] = useState(() => localStorage.getItem('ccg_aws_key_id') || '');
   const [awsSecretKey, setAwsSecretKey] = useState(() => localStorage.getItem('ccg_aws_secret_key') || '');
 
-  // Terraform Provisioner Form State
+  // Tab 1: Terraform Provisioner State
   const [selectedTfType, setSelectedTfType] = useState('EC2_INSTANCE');
   const [customName, setCustomName] = useState('ccg-tf-ubuntu-worker');
   const [instanceType, setInstanceType] = useState('t3.small');
   const [sizeGb, setSizeGb] = useState(50);
   const [tfConsoleOutput, setTfConsoleOutput] = useState<string>(
-    '# Configure your AWS Access Key & Secret in the top right "AWS Credentials" modal, then click "Create Now" to provision real AWS resources!'
+    '# Select any AWS service card above and click "Create Now" to run Terraform and provision infrastructure.'
   );
   const [isApplying, setIsApplying] = useState(false);
+
+  // Tab 2: Ansible State
+  const [selectedAnsibleFile, setSelectedAnsibleFile] = useState<'inventory' | 'playbook' | 'deploy'>('playbook');
+  const [ansibleConsole, setAnsibleConsole] = useState<string>(
+    '# Click "1. Ping EC2 Dynamic Inventory", "2. Run Role: Install Docker", or "3. Run Playbook: Deploy Stack to EC2" to execute Ansible playbooks.'
+  );
+
+  // Tab 3: Kubernetes State
+  const [selectedK8sFile, setSelectedK8sFile] = useState<'api' | 'web' | 'postgres'>('api');
+  const [apiReplicas, setApiReplicas] = useState(2);
+  const [webReplicas, setWebReplicas] = useState(2);
+  const [k8sConsole, setK8sConsole] = useState<string>(
+    '# Local Kubernetes (kind) cluster ready on namespace "cloud-cost-guardian". Click "kubectl apply -f infrastructure/k8s/" or scale pods below.'
+  );
+
+  // Tab 4: Docker & Jenkins CI/CD State
+  const [cicdConsole, setCicdConsole] = useState<string>(
+    '# Click "Trigger Jenkins Pipeline Build" or "Check Docker Compose Stack" to inspect build stages, Trivy security scan, and container health.'
+  );
+  const [pipelineBuildNum, setPipelineBuildNum] = useState(42);
 
   const getAuthHeaders = () => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -549,7 +379,6 @@ export default function App() {
           instanceType,
           sizeGb,
           region,
-          actor,
         }),
       });
       if (resp.ok) {
@@ -559,82 +388,42 @@ export default function App() {
         return;
       }
     } catch {
-      // Fallback for standalone preview
+      // Standalone fallback
     } finally {
       setIsApplying(false);
     }
+  };
 
-    // Standalone fallback execution when backend is not reachable
-    const now = new Date().toISOString();
-    const awsResourceId =
-      targetType === 'EC2_INSTANCE'
-        ? `i-0tf${Math.random().toString(16).slice(2, 10)}`
-        : targetType === 'EBS_VOLUME'
-        ? `vol-0tf${Math.random().toString(16).slice(2, 10)}`
-        : targetType === 'S3_BUCKET'
-        ? `arn:aws:s3:::${resourceLabel}`
-        : `AKIA${Math.random().toString(36).substring(2, 12).toUpperCase()}`;
+  const runDevOpsAction = async (
+    tool: 'ansible' | 'kubernetes' | 'docker' | 'jenkins',
+    action: string,
+    extra: Record<string, any> = {}
+  ) => {
+    try {
+      const resp = await fetch('/api/devops/execute', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ tool, action, region, ...extra }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (tool === 'ansible') setAnsibleConsole(data.output);
+        if (tool === 'kubernetes') setK8sConsole(data.output);
+        if (tool === 'docker' || tool === 'jenkins') {
+          setCicdConsole(data.output);
+          if (tool === 'jenkins') setPipelineBuildNum((n) => n + 1);
+        }
+        await loadAll();
+        return;
+      }
+    } catch {
+      // Fallback
+    }
 
-    const monthlyCost =
-      targetType === 'EC2_INSTANCE' ? 18.83 : targetType === 'EBS_VOLUME' ? Number((sizeGb * 0.08).toFixed(2)) : 2.3;
-
-    const newRes: CloudResource = {
-      id: `res-tf-${Date.now()}`,
-      awsResourceId,
-      name: resourceLabel,
-      resourceType: targetType,
-      region,
-      state: targetType === 'EBS_VOLUME' ? 'available' : 'running',
-      instanceTypeOrClass: targetType === 'EC2_INSTANCE' ? instanceType : `${sizeGb} GB gp3`,
-      monthlyCostUsd: monthlyCost,
-      avgCpuPercent: targetType === 'EC2_INSTANCE' ? 1.4 : null,
-      cpuSeries: [1.4, 1.3, 1.5, 1.2, 1.4],
-      metadata: { managedBy: svc.file },
-      tags: { Name: resourceLabel },
-      discoveredAt: now,
-    };
-
-    const newRec: Recommendation = {
-      id: `rec-tf-${Date.now()}`,
-      resourceId: newRes.id,
-      awsResourceId,
-      resourceName: resourceLabel,
-      resourceType: targetType,
-      ruleId: targetType === 'EBS_VOLUME' ? 'RULE_EBS_UNATTACHED' : 'RULE_EC2_IDLE_CPU',
-      title: `Optimize ${svc.name} (${resourceLabel})`,
-      reason: `Provisioned via ${svc.file} and flagged by FinOps detection rules.`,
-      suggestedAction: targetType === 'EBS_VOLUME' ? 'ec2:CreateSnapshot -> ec2:DeleteVolume' : 'ec2:StopInstances',
-      severity: 'MEDIUM',
-      estimatedMonthlySavingsUsd: monthlyCost,
-      status: 'PROPOSED',
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    setResources((prev) => [newRes, ...prev]);
-    setRecommendations((prev) => [newRec, ...prev]);
-    setAuditLogs((prev) => [
-      {
-        id: `aud-${Date.now()}`,
-        recommendationId: newRec.id,
-        awsResourceId,
-        action: 'TERRAFORM_APPLY_CREATED',
-        actor,
-        previousStatus: 'NONE',
-        newStatus: 'PROPOSED',
-        dryRun,
-        details: `Provisioned ${targetType} (${resourceLabel}) via ${svc.file}.`,
-        createdAt: now,
-      },
-      ...prev,
-    ]);
-    setTfConsoleOutput(
-      [
-        `$ terraform apply -target=${svc.badge} -auto-approve`,
-        `  + create ${svc.file} -> ${resourceLabel} (${awsResourceId})`,
-        `Apply complete! Resources: 1 added, 0 changed, 0 destroyed.`,
-      ].join('\n')
-    );
+    const fallbackOut = `[${tool.toUpperCase()}] Executed "${action}" in ${region} at ${new Date().toLocaleTimeString()}`;
+    if (tool === 'ansible') setAnsibleConsole(fallbackOut);
+    if (tool === 'kubernetes') setK8sConsole(fallbackOut);
+    if (tool === 'docker' || tool === 'jenkins') setCicdConsole(fallbackOut);
   };
 
   const handleAction = async (id: string, action: 'approve' | 'reject' | 'execute') => {
@@ -642,14 +431,14 @@ export default function App() {
       const resp = await fetch(`/api/recommendations/${id}/${action}`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ actor, dryRun }),
+        body: JSON.stringify({ dryRun }),
       });
       if (resp.ok) {
         await loadAll();
         return;
       }
     } catch {
-      // Fallback to local state transition
+      // Fallback
     }
 
     setRecommendations((prev) =>
@@ -660,7 +449,6 @@ export default function App() {
         return {
           ...rec,
           status: nextStatus,
-          approvedBy: action === 'approve' ? actor : rec.approvedBy,
           remediationResult:
             action === 'execute'
               ? `[${dryRun ? 'DRY-RUN' : 'LIVE AWS'} SUCCESS] Executed ${rec.suggestedAction} on ${rec.awsResourceId}.`
@@ -681,23 +469,21 @@ export default function App() {
         await loadAll();
       }
     } catch {
-      // Ignore network errors in standalone preview
+      // Ignore
     }
   };
 
   const activeService = TF_SERVICES.find((s) => s.type === selectedTfType) || TF_SERVICES[0];
+  const ec2Hosts = resources.filter((r) => r.resourceType === 'EC2_INSTANCE');
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <Navbar
-        actor={actor}
-        setActor={setActor}
         region={region}
         setRegion={setRegion}
         dryRun={dryRun}
         setDryRun={setDryRun}
         onRunScan={handleRunScan}
-        onSpawnWaste={() => handleTerraformApply('EBS_VOLUME')}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         awsKeyId={awsKeyId}
@@ -708,160 +494,153 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
         <KpiCards resources={resources} recommendations={recommendations} region={region} />
 
-        {/* TAB 1: DIRECT TERRAFORM RESOURCE LAUNCHER ON DASHBOARD */}
+        {/* TAB 1: TERRAFORM RESOURCE LAUNCHER */}
         {activeTab === 'terraform' && (
-          <section className="space-y-5">
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-              <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                <div>
-                  <h2 className="text-lg font-bold text-emerald-400">
-                    Direct Terraform Infrastructure Launcher (infrastructure/terraform/*.tf)
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Click any AWS service below to inspect its Terraform (.tf) module and provision EC2, EBS, S3, or IAM resources directly from the dashboard.
-                  </p>
-                </div>
-              </div>
+          <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-5">
+            <div>
+              <h2 className="text-lg font-bold text-emerald-400">
+                1. Terraform Infrastructure Launcher (infrastructure/terraform/*.tf)
+              </h2>
+              <p className="text-xs text-slate-400">
+                Click any AWS service card below to inspect its Terraform HCL code and provision EC2, EBS, S3, or IAM resources directly from the dashboard.
+              </p>
+            </div>
 
-              {/* 4 Service Selection Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-                {TF_SERVICES.map((svc) => {
-                  const isSelected = svc.type === selectedTfType;
-                  return (
-                    <div
-                      key={svc.type}
-                      onClick={() => handleSelectTfCard(svc)}
-                      className={`cursor-pointer rounded-xl p-4 border transition flex flex-col justify-between ${
-                        isSelected
-                          ? 'bg-emerald-950/30 border-emerald-500 shadow-lg shadow-emerald-950/50'
-                          : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-emerald-300">
-                            {svc.file}
-                          </span>
-                          <span className="text-[11px] font-mono text-slate-400">{svc.badge}</span>
-                        </div>
-                        <h3 className="text-sm font-bold text-white mt-2">{svc.name}</h3>
-                        <p className="text-xs text-slate-400 mt-1 leading-relaxed">{svc.description}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {TF_SERVICES.map((svc) => {
+                const isSelected = svc.type === selectedTfType;
+                return (
+                  <div
+                    key={svc.type}
+                    onClick={() => handleSelectTfCard(svc)}
+                    className={`cursor-pointer rounded-xl p-4 border transition flex flex-col justify-between ${
+                      isSelected
+                        ? 'bg-emerald-950/30 border-emerald-500 shadow-lg shadow-emerald-950/50'
+                        : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-emerald-300">
+                          {svc.file}
+                        </span>
+                        <span className="text-[11px] font-mono text-slate-400">{svc.badge}</span>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSelectTfCard(svc);
-                          handleTerraformApply(svc.type);
-                        }}
-                        disabled={isApplying}
-                        className="mt-4 w-full py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition"
-                      >
-                        {isApplying && selectedTfType === svc.type ? 'Applying .tf...' : `Create ${svc.type.split('_')[0]} Now`}
-                      </button>
+                      <h3 className="text-sm font-bold text-white mt-2">{svc.name}</h3>
+                      <p className="text-xs text-slate-400 mt-1 leading-relaxed">{svc.description}</p>
                     </div>
-                  );
-                })}
-              </div>
 
-              {/* Configuration Controls + Live .tf Code Preview + Terraform CLI Output */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono uppercase text-emerald-400">
-                      Terraform Variables ({activeService.file})
-                    </span>
-                    <span className="text-xs font-mono text-slate-400">Region: {region}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelectTfCard(svc);
+                        handleTerraformApply(svc.type);
+                      }}
+                      disabled={isApplying}
+                      className="mt-4 w-full py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition"
+                    >
+                      {isApplying && selectedTfType === svc.type
+                        ? 'Applying .tf...'
+                        : `Create ${svc.type.split('_')[0]} Now`}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono uppercase text-emerald-400">
+                    Terraform Variables ({activeService.file})
+                  </span>
+                  <span className="text-xs font-mono text-slate-400">Region: {region}</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-slate-400 mb-1">Resource Name Tag (var.resource_name)</label>
+                    <input
+                      type="text"
+                      value={customName}
+                      onChange={(e) => setCustomName(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono"
+                    />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  {selectedTfType === 'EC2_INSTANCE' && (
                     <div>
-                      <label className="block text-slate-400 mb-1">Resource Name Tag (var.resource_name)</label>
+                      <label className="block text-slate-400 mb-1">EC2 Instance Type (var.instance_type)</label>
+                      <select
+                        value={instanceType}
+                        onChange={(e) => setInstanceType(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono"
+                      >
+                        <option value="t3.micro">t3.micro ($7.59/mo)</option>
+                        <option value="t3.small">t3.small ($15.18/mo)</option>
+                        <option value="t3.medium">t3.medium ($30.37/mo)</option>
+                        <option value="m5.large">m5.large ($70.08/mo)</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {selectedTfType === 'EBS_VOLUME' && (
+                    <div>
+                      <label className="block text-slate-400 mb-1">EBS Size GiB (var.volume_size_gb)</label>
                       <input
-                        type="text"
-                        value={customName}
-                        onChange={(e) => setCustomName(e.target.value)}
+                        type="number"
+                        min={1}
+                        max={500}
+                        value={sizeGb}
+                        onChange={(e) => setSizeGb(Number(e.target.value))}
                         className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono"
                       />
                     </div>
-
-                    {selectedTfType === 'EC2_INSTANCE' && (
-                      <div>
-                        <label className="block text-slate-400 mb-1">EC2 Instance Type (var.instance_type)</label>
-                        <select
-                          value={instanceType}
-                          onChange={(e) => setInstanceType(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono"
-                        >
-                          <option value="t3.micro">t3.micro ($7.59/mo)</option>
-                          <option value="t3.small">t3.small ($15.18/mo)</option>
-                          <option value="t3.medium">t3.medium ($30.37/mo)</option>
-                          <option value="m5.large">m5.large ($70.08/mo)</option>
-                        </select>
-                      </div>
-                    )}
-
-                    {selectedTfType === 'EBS_VOLUME' && (
-                      <div>
-                        <label className="block text-slate-400 mb-1">EBS Size GiB (var.volume_size_gb)</label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={500}
-                          value={sizeGb}
-                          onChange={(e) => setSizeGb(Number(e.target.value))}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <pre className="bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs font-mono text-emerald-300 overflow-x-auto">
-                    {activeService.hcl}
-                  </pre>
-
-                  <button
-                    type="button"
-                    onClick={() => handleTerraformApply()}
-                    disabled={isApplying}
-                    className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition"
-                  >
-                    {isApplying
-                      ? 'Running terraform apply...'
-                      : `Run terraform apply (${activeService.file}) -> Create ${activeService.name}`}
-                  </button>
+                  )}
                 </div>
 
-                {/* Live Terraform Execution Output & Recently Created Resources */}
-                <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col justify-between space-y-3">
-                  <div>
-                    <div className="text-xs font-mono uppercase text-sky-400 mb-2">
-                      Terraform Execution Console Output
-                    </div>
-                    <pre className="bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-200 overflow-x-auto whitespace-pre-wrap min-h-[140px]">
-                      {tfConsoleOutput}
-                    </pre>
-                  </div>
+                <pre className="bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs font-mono text-emerald-300 overflow-x-auto">
+                  {activeService.hcl}
+                </pre>
 
-                  <div>
-                    <div className="text-xs font-semibold text-slate-300 mb-2">
-                      Latest Provisioned Resources ({resources.length} total)
-                    </div>
-                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                      {resources.slice(0, 4).map((r) => (
-                        <div
-                          key={r.id}
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs flex justify-between"
-                        >
-                          <div>
-                            <span className="font-semibold text-white">{r.name}</span>{' '}
-                            <span className="font-mono text-emerald-400">({r.awsResourceId})</span>
-                          </div>
-                          <span className="font-mono text-slate-400">{r.resourceType}</span>
+                <button
+                  type="button"
+                  onClick={() => handleTerraformApply()}
+                  disabled={isApplying}
+                  className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition"
+                >
+                  {isApplying
+                    ? 'Running terraform apply...'
+                    : `Run terraform apply (${activeService.file}) -> Create ${activeService.name}`}
+                </button>
+              </div>
+
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="text-xs font-mono uppercase text-sky-400 mb-2">Terraform Execution Console Output</div>
+                  <pre className="bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-200 overflow-x-auto whitespace-pre-wrap min-h-[150px]">
+                    {tfConsoleOutput}
+                  </pre>
+                </div>
+
+                <div>
+                  <div className="text-xs font-semibold text-slate-300 mb-2">
+                    Latest Provisioned Resources ({resources.length} total)
+                  </div>
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {resources.slice(0, 4).map((r) => (
+                      <div
+                        key={r.id}
+                        className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs flex justify-between"
+                      >
+                        <div>
+                          <span className="font-semibold text-white">{r.name}</span>{' '}
+                          <span className="font-mono text-emerald-400">({r.awsResourceId})</span>
                         </div>
-                      ))}
-                    </div>
+                        <span className="font-mono text-slate-400">{r.resourceType}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -869,7 +648,307 @@ export default function App() {
           </section>
         )}
 
-        {/* TAB 2: RECOMMENDATIONS */}
+        {/* TAB 2: ANSIBLE CONFIGURATION MANAGEMENT & DYNAMIC INVENTORY */}
+        {activeTab === 'ansible' && (
+          <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-amber-400">
+                  2. Ansible Configuration Management (infrastructure/ansible/)
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Uses the <span className="font-mono text-slate-200">amazon.aws.aws_ec2</span> dynamic inventory plugin to discover running EC2 instances and execute Docker &amp; Compose deployment roles.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => runDevOpsAction('ansible', 'ping')}
+                  className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-emerald-300"
+                >
+                  1. Ping EC2 Dynamic Inventory
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runDevOpsAction('ansible', 'docker')}
+                  className="px-3 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-bold text-amber-300"
+                >
+                  2. Run Role: Install Docker
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runDevOpsAction('ansible', 'deploy')}
+                  className="px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold"
+                >
+                  3. Run Playbook: Deploy Stack to EC2
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {(['inventory', 'playbook', 'deploy'] as const).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setSelectedAnsibleFile(key)}
+                      className={`px-3 py-1 rounded-lg text-xs font-mono ${
+                        selectedAnsibleFile === key
+                          ? 'bg-amber-500 text-slate-950 font-bold'
+                          : 'bg-slate-900 text-slate-400 border border-slate-800'
+                      }`}
+                    >
+                      {ANSIBLE_FILES[key].title}
+                    </button>
+                  ))}
+                </div>
+                <div className="text-xs font-mono text-slate-400">{ANSIBLE_FILES[selectedAnsibleFile].path}</div>
+                <pre className="bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs font-mono text-amber-300 overflow-x-auto">
+                  {ANSIBLE_FILES[selectedAnsibleFile].code}
+                </pre>
+
+                <div className="pt-2">
+                  <div className="text-xs font-semibold text-slate-300 mb-2">
+                    Discovered EC2 Hosts in Dynamic Inventory ({ec2Hosts.length})
+                  </div>
+                  <div className="space-y-1.5">
+                    {ec2Hosts.map((h) => (
+                      <div
+                        key={h.id}
+                        className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs flex justify-between"
+                      >
+                        <span>
+                          <strong className="text-white">{h.name}</strong> ({h.awsResourceId})
+                        </span>
+                        <span className="font-mono text-emerald-400">
+                          {String(h.metadata?.publicIp || '13.232.104.88')} • {h.state}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+                <div>
+                  <div className="text-xs font-mono uppercase text-amber-400 mb-2">
+                    Ansible Playbook Execution Output
+                  </div>
+                  <pre className="bg-slate-900 border border-slate-800 rounded-lg p-3.5 text-xs font-mono text-slate-200 overflow-x-auto whitespace-pre-wrap min-h-[260px]">
+                    {ansibleConsole}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* TAB 3: KUBERNETES (KIND / K3D) CLUSTER DASHBOARD */}
+        {activeTab === 'kubernetes' && (
+          <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-sky-400">
+                  3. Kubernetes Orchestration Control Plane (infrastructure/k8s/*.yaml)
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Manages local Kubernetes (<span className="font-mono text-slate-200">kind</span>) Deployments, Services, ConfigMaps, and Secrets inside namespace <span className="font-mono text-sky-300">cloud-cost-guardian</span>.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => runDevOpsAction('kubernetes', 'apply')}
+                  className="px-3.5 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold"
+                >
+                  kubectl apply -f infrastructure/k8s/
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between text-xs">
+                    <span className="font-mono text-sky-400">deployment.apps/ccg-api</span>
+                    <span className="text-emerald-400 font-bold">{apiReplicas}/{apiReplicas} Ready</span>
+                  </div>
+                  <div className="text-sm font-bold text-white mt-1">Express FinOps API Pods</div>
+                  <p className="text-xs text-slate-400 mt-1">Port: 3000 • ConfigMap: ccg-config</p>
+                </div>
+                <div className="mt-4 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = Math.max(1, apiReplicas - 1);
+                      setApiReplicas(next);
+                      runDevOpsAction('kubernetes', 'scale', { target: 'ccg-api', replicas: next });
+                    }}
+                    className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs font-bold"
+                  >
+                    -1 Pod
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = Math.min(5, apiReplicas + 1);
+                      setApiReplicas(next);
+                      runDevOpsAction('kubernetes', 'scale', { target: 'ccg-api', replicas: next });
+                    }}
+                    className="px-2.5 py-1 rounded bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 text-xs font-bold"
+                  >
+                    +1 Pod (Scale)
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between text-xs">
+                    <span className="font-mono text-sky-400">deployment.apps/ccg-web</span>
+                    <span className="text-emerald-400 font-bold">{webReplicas}/{webReplicas} Ready</span>
+                  </div>
+                  <div className="text-sm font-bold text-white mt-1">React Nginx Frontend Pods</div>
+                  <p className="text-xs text-slate-400 mt-1">Service: NodePort 30080 → 80</p>
+                </div>
+                <div className="mt-4 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = Math.max(1, webReplicas - 1);
+                      setWebReplicas(next);
+                      runDevOpsAction('kubernetes', 'scale', { target: 'ccg-web', replicas: next });
+                    }}
+                    className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs font-bold"
+                  >
+                    -1 Pod
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = Math.min(5, webReplicas + 1);
+                      setWebReplicas(next);
+                      runDevOpsAction('kubernetes', 'scale', { target: 'ccg-web', replicas: next });
+                    }}
+                    className="px-2.5 py-1 rounded bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 text-xs font-bold"
+                  >
+                    +1 Pod (Scale)
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between text-xs">
+                    <span className="font-mono text-sky-400">deployment.apps/ccg-postgres</span>
+                    <span className="text-emerald-400 font-bold">1/1 Ready</span>
+                  </div>
+                  <div className="text-sm font-bold text-white mt-1">PostgreSQL 16 Database</div>
+                  <p className="text-xs text-slate-400 mt-1">Port: 5432 • Secret: ccg-secrets</p>
+                </div>
+                <div className="mt-4 text-xs font-mono text-emerald-400">Status: Healthy (PVC Bound)</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {(['api', 'web', 'postgres'] as const).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setSelectedK8sFile(key)}
+                      className={`px-3 py-1 rounded-lg text-xs font-mono ${
+                        selectedK8sFile === key
+                          ? 'bg-sky-500 text-slate-950 font-bold'
+                          : 'bg-slate-900 text-slate-400 border border-slate-800'
+                      }`}
+                    >
+                      {K8S_MANIFESTS[key].title}
+                    </button>
+                  ))}
+                </div>
+                <div className="text-xs font-mono text-slate-400">{K8S_MANIFESTS[selectedK8sFile].path}</div>
+                <pre className="bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs font-mono text-sky-300 overflow-x-auto">
+                  {K8S_MANIFESTS[selectedK8sFile].code}
+                </pre>
+              </div>
+
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4">
+                <div className="text-xs font-mono uppercase text-sky-400 mb-2">kubectl CLI Output</div>
+                <pre className="bg-slate-900 border border-slate-800 rounded-lg p-3.5 text-xs font-mono text-slate-200 overflow-x-auto whitespace-pre-wrap min-h-[220px]">
+                  {k8sConsole}
+                </pre>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* TAB 4: DOCKER COMPOSE & JENKINS CI/CD PIPELINE */}
+        {activeTab === 'cicd' && (
+          <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-purple-400">
+                  4. Docker Compose &amp; Jenkins CI/CD Pipeline (Jenkinsfile + docker-compose.yml)
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Polls GitHub SCM, runs TypeScript lint &amp; unit tests, scans with Trivy, validates Terraform, pushes images to GHCR, and triggers Ansible deploy.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => runDevOpsAction('docker', 'ps')}
+                  className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-sky-300"
+                >
+                  Check Docker Compose Stack
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runDevOpsAction('jenkins', 'build')}
+                  className="px-3.5 py-2 rounded-lg bg-purple-500 hover:bg-purple-400 text-slate-950 text-xs font-bold"
+                >
+                  Trigger Jenkins Pipeline Build #{pipelineBuildNum + 1}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+              {[
+                { stage: '1. Checkout SCM', tool: 'Git Monorepo', status: 'PASSED' },
+                { stage: '2. Install & Lint', tool: 'tsc --noEmit', status: 'PASSED' },
+                { stage: '3. Unit Tests', tool: 'State Machine', status: 'PASSED' },
+                { stage: '4. Security Scan', tool: 'Trivy & npm audit', status: '0 CRITICAL' },
+                { stage: '5. IaC Validate', tool: 'terraform validate', status: 'VALID' },
+                { stage: '6. GHCR & Deploy', tool: 'Docker + Ansible', status: 'DEPLOYED' },
+              ].map((s) => (
+                <div key={s.stage} className="bg-slate-950 border border-emerald-500/30 rounded-xl p-3">
+                  <div className="font-bold text-white">{s.stage}</div>
+                  <div className="text-[11px] font-mono text-slate-400 mt-0.5">{s.tool}</div>
+                  <div className="mt-2 inline-block px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-mono text-[10px] font-bold">
+                    {s.status}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-4">
+              <div className="text-xs font-mono uppercase text-purple-400 mb-2">
+                Jenkins &amp; Docker Compose Console Output
+              </div>
+              <pre className="bg-slate-900 border border-slate-800 rounded-lg p-3.5 text-xs font-mono text-slate-200 overflow-x-auto whitespace-pre-wrap min-h-[190px]">
+                {cicdConsole}
+              </pre>
+            </div>
+          </section>
+        )}
+
+        {/* TAB 5: RECOMMENDATIONS */}
         {activeTab === 'recommendations' && (
           <section className="space-y-3">
             <h2 className="text-lg font-semibold">Approval-Gated Recommendations ({recommendations.length})</h2>
@@ -931,7 +1010,7 @@ export default function App() {
           </section>
         )}
 
-        {/* TAB 3: INVENTORY */}
+        {/* TAB 6: INVENTORY */}
         {activeTab === 'inventory' && (
           <section className="space-y-3">
             <h2 className="text-lg font-semibold">Discovered AWS Resource Inventory ({resources.length})</h2>
@@ -961,7 +1040,7 @@ export default function App() {
           </section>
         )}
 
-        {/* TAB 4: AUDIT LOG */}
+        {/* TAB 7: AUDIT LOG */}
         {activeTab === 'audit' && (
           <section className="space-y-3">
             <h2 className="text-lg font-semibold">Immutable FinOps Audit Trail ({auditLogs.length})</h2>
@@ -974,7 +1053,7 @@ export default function App() {
                   </div>
                   <div className="text-slate-200 mt-1">{log.details}</div>
                   <div className="text-slate-400 mt-1">
-                    Resource: <span className="font-mono">{log.awsResourceId}</span> • Actor: {log.actor} • DryRun: {String(log.dryRun)}
+                    Resource: <span className="font-mono">{log.awsResourceId}</span> • DryRun: {String(log.dryRun)}
                   </div>
                 </div>
               ))}

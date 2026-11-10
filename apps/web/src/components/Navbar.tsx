@@ -1,14 +1,11 @@
 import React, { useState } from 'react';
 
-interface NavbarProps {
-  actor: string;
-  setActor: (a: string) => void;
+export interface NavbarProps {
   region: string;
   setRegion: (r: string) => void;
   dryRun: boolean;
   setDryRun: (d: boolean) => void;
   onRunScan: () => void;
-  onSpawnWaste?: () => void;
   activeTab: string;
   setActiveTab: (t: string) => void;
   awsKeyId: string;
@@ -17,8 +14,6 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  actor,
-  setActor,
   region,
   setRegion,
   dryRun,
@@ -39,45 +34,45 @@ export const Navbar: React.FC<NavbarProps> = ({
       <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-6 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold">
-            CCG
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold">
+              CCG
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-white">Cloud Cost Guardian</h1>
+              <p className="text-xs text-slate-400">Approval-Gated AWS Cost Optimization • PERN + DevOps</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-white">Cloud Cost Guardian</h1>
-            <p className="text-xs text-slate-400">Approval-Gated AWS Cost Optimization • PERN + DevOps</p>
-          </div>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => {
-              setTempKeyId(awsKeyId);
-              setTempSecretKey(awsSecretKey);
-              setShowModal(true);
-            }}
-            className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition ${
-              awsKeyId
-                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
-                : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full ${awsKeyId ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`}></span>
-            {awsKeyId ? 'AWS Keys Connected' : '🔑 Set AWS Keys'}
-          </button>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                setTempKeyId(awsKeyId);
+                setTempSecretKey(awsSecretKey);
+                setShowModal(true);
+              }}
+              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition ${
+                awsKeyId
+                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${awsKeyId ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`}></span>
+              {awsKeyId ? 'AWS Keys Connected' : 'Set AWS Keys'}
+            </button>
 
-          <select
-            value={region}
-            onChange={(e) => setRegion(e.target.value)}
-            className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-mono"
-          >
-            <option value="ap-south-1">ap-south-1 (Mumbai)</option>
-            <option value="us-east-1">us-east-1 (N. Virginia)</option>
-          </select>
+            <select
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+              className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-mono"
+            >
+              <option value="ap-south-1">ap-south-1 (Mumbai)</option>
+              <option value="us-east-1">us-east-1 (N. Virginia)</option>
+            </select>
 
-          <button
-            type="button"
-            onClick={() => setDryRun(!dryRun)}
+            <button
+              type="button"
+              onClick={() => setDryRun(!dryRun)}
               className={`px-3 py-1.5 rounded-lg border text-xs font-semibold ${
                 dryRun
                   ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
@@ -89,34 +84,29 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               type="button"
-              onClick={() => setActiveTab('terraform')}
-              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold"
-            >
-              + Terraform Create Resource
-            </button>
-
-            <button
-              type="button"
               onClick={onRunScan}
               className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold"
             >
-              Run AWS Scans
+              Run AWS Scan
             </button>
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-6 flex flex-wrap gap-2 border-t border-slate-800/80 pt-1">
+        <div className="max-w-7xl mx-auto px-6 flex flex-wrap gap-1 border-t border-slate-800/80 pt-1">
           {[
-            { id: 'terraform', label: '1. Terraform Resource Launcher (.tf)' },
-            { id: 'recommendations', label: '2. Approval & Remediation Queue' },
-            { id: 'inventory', label: '3. Discovered AWS Resources' },
-            { id: 'audit', label: '4. Immutable Audit Trail' },
+            { id: 'terraform', label: '1. Terraform (.tf)' },
+            { id: 'ansible', label: '2. Ansible Playbooks' },
+            { id: 'kubernetes', label: '3. Kubernetes (kind)' },
+            { id: 'cicd', label: '4. Docker & Jenkins CI/CD' },
+            { id: 'recommendations', label: '5. FinOps Approvals' },
+            { id: 'inventory', label: '6. AWS Inventory' },
+            { id: 'audit', label: '7. Audit Trail' },
           ].map((t) => (
             <button
               key={t.id}
               type="button"
               onClick={() => setActiveTab(t.id)}
-              className={`px-4 py-2 text-xs sm:text-sm font-semibold border-b-2 ${
+              className={`px-3.5 py-2 text-xs font-semibold border-b-2 transition ${
                 activeTab === t.id
                   ? 'border-emerald-400 text-emerald-400'
                   : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -142,7 +132,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             </div>
             <p className="text-xs text-slate-400">
-              Enter your least-privilege IAM user Access Key and Secret. These are stored securely in your browser's <span className="font-mono text-emerald-400">localStorage</span> and sent only when calling live AWS APIs.
+              Enter your IAM user Access Key and Secret. These are stored in your browser's{' '}
+              <span className="font-mono text-emerald-400">localStorage</span> and passed via headers when calling AWS APIs.
             </p>
 
             <div className="space-y-3 text-xs">
