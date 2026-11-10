@@ -2,10 +2,6 @@
 # Cloud Cost Guardian (CCG)
 **Approval-Gated AWS Cost Optimization & FinOps Platform (PERN + DevOps)**
 
-### Team Members
-- **Himansu Mallik** (`RA2311003012367`)
-- **Aarnov Adhikari** (`RA2311003012365`)
-- **Utsav Gautam** (`RA2311003012366`)
 
 ## How to Run the Project Folder
 1. **Unzip `cloud-cost-guardian.zip`** and open a terminal inside the `cloud-cost-guardian/` directory.
@@ -30,4 +26,4 @@
    ```
 =======
 # cloud-cost-guardian
->>>>>>> 79b43ae504fb0ebde3717f79b0f5c0ff5909fc56
+>>>>>>> 
