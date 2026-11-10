@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Cloud Cost Guardian (CCG)
 **Approval-Gated AWS Cost Optimization & FinOps Platform (PERN + DevOps)**
 
@@ -24,6 +23,4 @@
    npm install
    npm run dev
    ```
-=======
-# cloud-cost-guardian
->>>>>>> 
+
