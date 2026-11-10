@@ -381,14 +381,16 @@ export default function App() {
           region,
         }),
       });
-      if (resp.ok) {
-        const data = await resp.json();
-        setTfConsoleOutput(data.terraformOutput || 'Apply complete!');
-        await loadAll();
-        return;
+      const data = await resp.json();
+      if (!resp.ok) {
+        throw new Error(data.error || `Terraform request failed (${resp.status})`);
       }
-    } catch {
-      // Standalone fallback
+      setTfConsoleOutput(data.terraformOutput || 'Apply complete!');
+      await loadAll();
+    } catch (error) {
+      setTfConsoleOutput(
+        `Terraform apply failed: ${error instanceof Error ? error.message : 'Unexpected request error'}`
+      );
     } finally {
       setIsApplying(false);
     }

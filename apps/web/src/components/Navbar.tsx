@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 export interface NavbarProps {
   region: string;
@@ -29,6 +29,33 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [tempKeyId, setTempKeyId] = useState(awsKeyId);
   const [tempSecretKey, setTempSecretKey] = useState(awsSecretKey);
 
+  // Dynamic AWS Identity State
+  const [awsIdentity, setAwsIdentity] = useState<{
+    configured: boolean;
+    account: string;
+    username: string;
+    arn: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const fetchIdentity = async () => {
+      try {
+        const headers: Record<string, string> = {};
+        if (awsKeyId) headers['x-aws-access-key-id'] = awsKeyId;
+        if (awsSecretKey) headers['x-aws-secret-access-key'] = awsSecretKey;
+
+        const resp = await fetch(`/api/aws/identity?region=${region}`, { headers });
+        if (resp.ok) {
+          const data = await resp.json();
+          setAwsIdentity(data);
+        }
+      } catch {
+        setAwsIdentity(null);
+      }
+    };
+    fetchIdentity();
+  }, [awsKeyId, awsSecretKey, region]);
+
   return (
     <>
       <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-30">
@@ -44,6 +71,23 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            {/* Dynamic User Profile & AWS Account Tracking Badge */}
+            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200">
+              <div className="w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-xs">
+                👤
+              </div>
+              <div className="flex flex-col text-left">
+                <span className="font-semibold text-white leading-tight">
+                  {awsIdentity?.username}
+                </span>
+                <span className="font-mono text-[10px] text-emerald-400">
+                  {awsIdentity?.configured
+                    ? `AWS: ${awsIdentity.account} • ***${awsKeyId.slice(-4)}`
+                    : 'Sandbox: Local'} • {region}
+                </span>
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={() => {
@@ -57,29 +101,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
               }`}
             >
-              <span className={`w-2 h-2 rounded-full ${awsKeyId ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`}></span>
-              {awsKeyId ? 'AWS Keys Connected' : 'Set AWS Keys'}
-            </button>
-
-            <select
-              value={region}
-              onChange={(e) => setRegion(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-mono"
-            >
-              <option value="ap-south-1">ap-south-1 (Mumbai)</option>
-              <option value="us-east-1">us-east-1 (N. Virginia)</option>
-            </select>
-
-            <button
-              type="button"
-              onClick={() => setDryRun(!dryRun)}
-              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold ${
-                dryRun
-                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
-                  : 'bg-rose-500/20 border-rose-500/50 text-rose-300'
-              }`}
-            >
-              {dryRun ? 'Dry-Run Mode: ON' : 'Live AWS Mode: ON'}
+              {awsKeyId ? 'AWS Connected' : 'Set AWS Keys'}
             </button>
 
             <button

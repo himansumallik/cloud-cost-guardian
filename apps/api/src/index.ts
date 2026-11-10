@@ -11,6 +11,11 @@ import {
 } from '@aws-sdk/client-ec2';
 import { S3Client, CreateBucketCommand } from '@aws-sdk/client-s3';
 import { env } from './config/env.js';
+
+const loadAwsStsSdk = async (): Promise<{ STSClient: any; GetCallerIdentityCommand: any }> => {
+  const awsStsSdk = await new Function('return import("@aws-sdk/client-sts")')();
+  return awsStsSdk as { STSClient: any; GetCallerIdentityCommand: any };
+};
 import { store, CloudResource } from './db/store.js';
 import { DiscoveryService } from './services/discovery.service.js';
 import { RemediationService } from './services/remediation.service.js';
@@ -92,36 +97,54 @@ app.get('/health', (_req, res) => {
   });
 });
 
-app.get('/api/summary', (_req, res) => {
-  const totalMonthlySpend = store.resources.reduce((acc, r) => acc + r.monthlyCostUsd, 0);
-  const potentialMonthlySavings = store.recommendations
-    .filter((r) => r.status !== 'REJECTED')
-    .reduce((acc, r) => acc + r.estimatedMonthlySavingsUsd, 0);
-  const realizedMonthlySavings = store.recommendations
-    .filter((r) => r.status === 'COMPLETED')
-    .reduce((acc, r) => acc + r.estimatedMonthlySavingsUsd, 0);
+// Endpoint to resolve AWS IAM Username and Account ID dynamically from runtime keys via AWS STS
+app.get('/api/aws/identity', async (req, res) => {
+  try {
+    const runtimeKeyId = req.headers['x-aws-access-key-id'] as string;
+    const runtimeSecretKey = req.headers['x-aws-secret-access-key'] as string;
+    const region = (req.query.region as string) || env.awsRegion;
 
-  res.json({
-    totalResources: store.resources.length,
-    totalMonthlySpendUsd: Number(totalMonthlySpend.toFixed(2)),
-    potentialMonthlySavingsUsd: Number(potentialMonthlySavings.toFixed(2)),
-    realizedMonthlySavingsUsd: Number(realizedMonthlySavings.toFixed(2)),
-    countsByStatus: {
-      PROPOSED: store.recommendations.filter((r) => r.status === 'PROPOSED').length,
-      APPROVED: store.recommendations.filter((r) => r.status === 'APPROVED').length,
-      EXECUTING: store.recommendations.filter((r) => r.status === 'EXECUTING').length,
-      COMPLETED: store.recommendations.filter((r) => r.status === 'COMPLETED').length,
-      REJECTED: store.recommendations.filter((r) => r.status === 'REJECTED').length,
-    },
-  });
-});
+    if (!runtimeKeyId || !runtimeSecretKey) {
+      return res.json({
+        configured: false,
+        account: 'Local Sandbox',
+        userId: 'local-operator',
+        arn: 'arn:aws:iam::000000000000:user/local-sandbox',
+        username: 'Himansu Mallik',
+      });
+    }
 
-app.get('/api/resources', (_req, res) => {
-  res.json(store.resources);
+    const { STSClient, GetCallerIdentityCommand } = await loadAwsStsSdk();
+
+    const sts = new STSClient({
+      region,
+      credentials: { accessKeyId: runtimeKeyId, secretAccessKey: runtimeSecretKey },
+    });
+
+    const identity = await sts.send(new GetCallerIdentityCommand({}));
+    const arn = identity.Arn || '';
+    // Extract username or role name from ARN (e.g., arn:aws:iam::123456789012:user/HimansuMallik -> HimansuMallik)
+    const arnParts = arn.split('/');
+    const extractedName = arnParts.length > 1 ? arnParts[arnParts.length - 1] : 'AWS User';
+
+    res.json({
+      configured: true,
+      account: identity.Account || 'Unknown Account',
+      userId: identity.UserId || '',
+      arn,
+      username: extractedName,
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || 'Failed to authenticate AWS credentials' });
+  }
 });
 
 app.get('/api/terraform/templates', (_req, res) => {
   res.json(TERRAFORM_TEMPLATES);
+});
+
+app.get('/api/resources', (_req, res) => {
+  res.json(store.resources);
 });
 
 app.post('/api/terraform/apply', async (req, res) => {
@@ -233,7 +256,12 @@ app.post('/api/terraform/apply', async (req, res) => {
 
       if (!env.demoMode || awsCredentials) {
         const s3 = new S3Client({ region, ...(awsCredentials ? { credentials: awsCredentials } : {}) });
-        await s3.send(new CreateBucketCommand({ Bucket: bucketName }));
+        await s3.send(
+          new CreateBucketCommand({
+            Bucket: bucketName,
+            ...(region === 'us-east-1' ? {} : { CreateBucketConfiguration: { LocationConstraint: region } }),
+          })
+        );
       }
     } else if (resourceType === 'IAM_ACCESS_KEY') {
       awsResourceId = `AKIA${Math.random().toString(36).substring(2, 14).toUpperCase()}`;

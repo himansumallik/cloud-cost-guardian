@@ -16,6 +16,24 @@ variable "app_instance_type" {
   default     = "t3.small"
 }
 
+variable "instance_type" {
+  description = "EC2 instance type for dashboard-provisioned resources"
+  type        = string
+  default     = "t3.small"
+}
+
+variable "volume_size_gb" {
+  description = "EBS volume size for dashboard-provisioned resources"
+  type        = number
+  default     = 50
+}
+
+variable "resource_name" {
+  description = "Name applied to dashboard-provisioned resources"
+  type        = string
+  default     = "ccg-tf-resource"
+}
+
 variable "enable_waste_simulation" {
   description = "Create intentional idle EC2 and unattached 1GB EBS volume for FinOps testing"
   type        = bool
