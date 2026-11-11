@@ -1,4 +1,4 @@
-# Auto-generated from Dashboard at 2026-11-10T17:49:49.272Z
+# Auto-generated from Dashboard by Himansu Mallik (RA2311003012367) at 2026-11-11T10:44:40.864Z
 resource "aws_instance" "dashboard_ec2" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = var.instance_type

@@ -1,4 +1,4 @@
-# Auto-generated from Dashboard at 2026-11-10T17:34:00.090Z
+# Auto-generated from Dashboard by Himansu Mallik (RA2311003012367) at 2026-11-11T10:57:32.481Z
 resource "aws_iam_user" "dashboard_user" {
   name = var.resource_name
 }

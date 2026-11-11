@@ -432,32 +432,27 @@ export default function App() {
     try {
       const resp = await fetch(`/api/recommendations/${id}/${action}`, {
         method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ dryRun }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(), // Keep auth token intact
+        },
+        body: JSON.stringify({ dryRun: action === 'execute' ? false : dryRun }),
       });
-      if (resp.ok) {
-        await loadAll();
-        return;
-      }
-    } catch {
-      // Fallback
-    }
 
-    setRecommendations((prev) =>
-      prev.map((rec) => {
-        if (rec.id !== id) return rec;
-        const nextStatus: RecommendationStatus =
-          action === 'approve' ? 'APPROVED' : action === 'reject' ? 'REJECTED' : 'COMPLETED';
-        return {
-          ...rec,
-          status: nextStatus,
-          remediationResult:
-            action === 'execute'
-              ? `[${dryRun ? 'DRY-RUN' : 'LIVE AWS'} SUCCESS] Executed ${rec.suggestedAction} on ${rec.awsResourceId}.`
-              : rec.remediationResult,
-        };
-      })
-    );
+      if (!resp.ok) {
+        const errorData = await resp.json().catch(() => ({}));
+        console.error(`Action failed with status ${resp.status}:`, errorData);
+        alert(`Failed to execute: ${errorData.message || resp.statusText}`);
+        return; // Stop execution on failure
+      }
+
+      // Refresh state from the database on actual success
+      await loadAll();
+
+    } catch (error) {
+      console.error('Network or server error:', error);
+      alert('Network error while executing action.');
+    }
   };
 
   const handleRunScan = async () => {

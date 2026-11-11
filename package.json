@@ -16,5 +16,8 @@
     "lint": "npm --prefix apps/api run lint"
   },
   "author": "Himansu Mallik (RA2311003012367), Aarnov Adhikari (RA2311003012365), Utsav Gautam (RA2311003012366)",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-sts": "^3.1165.0"
+  }
 }
